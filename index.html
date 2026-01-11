@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RE2 CIRCUIT - CONTACT FAILURE</title>
+    <title>RE2 CIRCUIT - MASTERMIND MODE</title>
     <style>
         @font-face {
             font-family: 'RE_Font';
@@ -26,63 +26,62 @@
             overflow: hidden;
         }
 
-        h2 { color: var(--re-red); text-transform: uppercase; letter-spacing: 5px; margin-bottom: 10px; font-size: 2em; }
+        h2 { color: var(--re-red); text-transform: uppercase; letter-spacing: 8px; margin-bottom: 10px; font-size: 2.2em; text-shadow: 0 0 15px rgba(139, 0, 0, 0.5); }
 
         #info-panel { 
-            margin-bottom: 15px; font-size: 1.2em; display: flex; gap: 40px; 
-            background: rgba(20, 20, 20, 0.9); padding: 10px 30px; border: 1px solid #444;
+            margin-bottom: 20px; font-size: 1.2em; display: flex; gap: 50px; 
+            background: rgba(15, 15, 15, 0.95); padding: 12px 40px; border: 1px solid #333;
+            box-shadow: inset 0 0 15px #000;
         }
 
-        .timer { color: #f00; font-weight: bold; }
-        #game-container { position: relative; padding: 60px; background: #111; border: 4px solid #333; box-shadow: 0 0 100px #000; }
-        #game-board { display: grid; gap: 4px; background: #000; padding: 4px; border: 2px solid #222; }
+        .timer { color: #ff0000; font-weight: bold; }
+        #game-container { position: relative; padding: 60px; background: #0a0a0a; border: 4px solid #222; box-shadow: 0 0 100px #000; }
+        #game-board { display: grid; gap: 5px; background: #000; padding: 5px; border: 1px solid #1a1a1a; }
 
-        .port { position: absolute; font-size: 11px; font-weight: bold; text-transform: uppercase; z-index: 5; }
-        .in-p { color: var(--pwr-color); left: 10px; top: 85px; text-shadow: 0 0 5px var(--pwr-color); }
-        .out-p { right: 10px; bottom: 85px; color: #444; }
-        .out-p.active { color: var(--pwr-color); text-shadow: 0 0 15px var(--pwr-color); }
+        .port { position: absolute; font-size: 12px; font-weight: bold; text-transform: uppercase; z-index: 5; letter-spacing: 2px; }
+        .in-p { color: var(--pwr-color); left: 10px; top: 85px; text-shadow: 0 0 8px var(--pwr-color); }
+        .out-p { right: 10px; bottom: 85px; color: #333; transition: 0.3s; }
+        .out-p.active { color: var(--pwr-color); text-shadow: 0 0 20px var(--pwr-color); }
 
-        .tile { width: 75px; height: 75px; background: #151515; cursor: pointer; position: relative; transition: transform 0.2s; }
-        .tile.locked { cursor: not-allowed; background: var(--locked-bg); border: 1px solid #600; }
-        .tile.locked::before { content: 'FIXED'; position: absolute; font-size: 8px; color: #f00; top: 2px; left: 2px; z-index: 10; }
+        .tile { width: 75px; height: 75px; background: #111; cursor: pointer; position: relative; transition: transform 0.2s, background 0.2s; }
+        .tile:hover:not(.locked) { background: #1a1a1a; }
+        .tile.locked { cursor: not-allowed; background: var(--locked-bg); border: 1px solid #500; }
+        .tile.locked::before { content: 'FIXED'; position: absolute; font-size: 8px; color: #f00; top: 2px; left: 2px; z-index: 10; opacity: 0.7; }
 
-        .wire { position: absolute; background: #333; z-index: 1; transition: background 0.2s; }
-        .tile::after { content: ''; position: absolute; width: 14px; height: 14px; background: #333; left: 30.5px; top: 30.5px; border-radius: 2px; z-index: 2; }
+        .wire { position: absolute; background: #2a2a2a; z-index: 1; transition: background 0.3s; }
+        .tile::after { content: ''; position: absolute; width: 14px; height: 14px; background: #2a2a2a; left: 30.5px; top: 30.5px; border-radius: 2px; z-index: 2; }
         
-        /* 導向位置 */
         .w-up { width: 8px; height: 38px; left: 33.5px; top: 0; }
         .w-right { width: 38px; height: 8px; left: 37.5px; top: 33.5px; }
         .w-down { width: 8px; height: 38px; left: 33.5px; top: 37.5px; }
         .w-left { width: 38px; height: 8px; left: 0; top: 33.5px; }
 
-        /* 通電效果 */
         .powered .wire:not(.fake), .powered::after { background: var(--pwr-color) !important; box-shadow: 0 0 15px var(--pwr-color); }
         
-        /* 接觸不良閃爍效果 (假線) */
-        .flicker .wire.fake { animation: contact-failure 0.5s infinite; }
-        @keyframes contact-failure {
-            0%, 20%, 40% { background: var(--pwr-color); box-shadow: 0 0 10px var(--pwr-color); }
-            10%, 30%, 50% { background: #333; box-shadow: none; }
-            100% { background: #333; }
+        /* 假線閃爍 */
+        .flicker .wire.fake { animation: failure 0.4s infinite alternate; }
+        @keyframes failure {
+            from { background: var(--pwr-color); box-shadow: 0 0 12px var(--pwr-color); }
+            to { background: #2a2a2a; box-shadow: none; }
         }
 
         .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.98); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 100; text-align: center; }
-        #status-text { font-size: 4em; margin-bottom: 20px; font-family: 'RE_Font', serif; letter-spacing: 2px; }
+        #status-text { font-size: 4em; margin-bottom: 20px; font-family: 'RE_Font', serif; letter-spacing: 5px; }
+        
         .stranger-text { 
             color: #f1c40f; font-size: 2.5em !important; 
-            line-height: 2.5; letter-spacing: 15px !important; 
-            text-shadow: 0 0 30px rgba(241, 196, 15, 0.8); 
+            line-height: 2.8; letter-spacing: 18px !important; 
+            text-shadow: 0 0 40px rgba(241, 196, 15, 0.9); 
             white-space: pre-line;
         }
 
-        button { background: transparent; color: #fff; border: 1px solid #666; padding: 15px 50px; cursor: pointer; font-size: 1.5em; font-family: 'RE_Font', sans-serif; }
-        button:hover { background: #800; border-color: #f00; }
-        .hidden { display: none; }
+        button { background: transparent; color: #fff; border: 1px solid #444; padding: 15px 60px; cursor: pointer; font-size: 1.5em; font-family: 'RE_Font', sans-serif; letter-spacing: 3px; }
+        button:hover { background: #600; border-color: #f00; }
     </style>
 </head>
 <body>
 
-    <h2>POWER GRID: CONTACT FAILURE</h2>
+    <h2>CIRCUIT CONTROL: OVERLOAD</h2>
     
     <div id="info-panel">
         <div>LVL: <span id="lvl-display">1</span></div>
@@ -102,9 +101,9 @@
 
 <script>
     const levels = [
-        {size: 3, locks: 0, fakeChance: 0},
-        {size: 4, locks: 3, fakeChance: 0.5},
-        {size: 5, locks: 7, fakeChance: 0.7}
+        {size: 3, locks: 0, fakeChance: 0, deadTiles: 0},
+        {size: 4, locks: 3, fakeChance: 0.5, deadTiles: 2},
+        {size: 5, locks: 8, fakeChance: 0.85, deadTiles: 5} // 第 3 關強化
     ];
     let currentLvl = 0, timeLeft = 60, timerId = null, tiles = [], isLocked = false;
 
@@ -113,46 +112,61 @@
         document.getElementById('overlay').style.display = 'none';
         const cfg = levels[currentLvl];
         document.getElementById('lvl-display').innerText = currentLvl + 1;
-        generateLevel(cfg);
+        document.getElementById('out-label').classList.remove('active');
+        generateHardcoreLevel(cfg);
         startTimer();
     }
 
-    function generateLevel(cfg) {
+    function generateHardcoreLevel(cfg) {
         const boardEl = document.getElementById('game-board');
         boardEl.innerHTML = '';
         boardEl.style.gridTemplateColumns = `repeat(${cfg.size}, 75px)`;
         tiles = [];
 
-        // 建立資料網格
-        const grid = Array.from({length: cfg.size}, () => Array.from({length: cfg.size}, () => ({real:[], fake:[]})));
+        const grid = Array.from({length: cfg.size}, () => Array.from({length: cfg.size}, () => ({real:[], fake:[], isDead: false})));
         
-        // 生成蜿蜒路徑
+        // 1. 產生極度曲折的路徑
         let r = 0, c = 0;
-        grid[r][c].real.push(3); 
-        while(r < cfg.size-1 || c < cfg.size-1) {
-            let lr = r, lc = c;
-            if(r < cfg.size-1 && (Math.random() > 0.5 || c === cfg.size-1)) r++; else c++;
-            let out = (r > lr) ? 2 : 1;
-            let inv = (out === 2) ? 0 : 3;
-            grid[lr][lc].real.push(out);
-            grid[r][c].real.push(inv);
+        grid[r][c].real.push(3);
+        const path = [[0,0]];
+        while(r < cfg.size - 1 || c < cfg.size - 1) {
+            let possible = [];
+            if(r < cfg.size - 1) possible.push([r+1, c, 2, 0]);
+            if(c < cfg.size - 1) possible.push([r, c+1, 1, 3]);
+            
+            // 隨機選一個但給予方向權重，避免太直
+            let choice = (Math.random() > 0.4) ? possible[possible.length-1] : possible[0];
+            grid[r][c].real.push(choice[2]);
+            r = choice[0]; c = choice[1];
+            grid[r][c].real.push(choice[3]);
+            path.push([r, c]);
         }
         grid[cfg.size-1][cfg.size-1].real.push(1);
 
-        // 決定固定塊 (分散佈置)
-        let lockIdx = new Set();
-        let attempts = 0;
-        while(lockIdx.size < cfg.locks && attempts < 100) {
-            let rand = Math.floor(Math.random() * (cfg.size*cfg.size));
-            if(rand !== 0 && rand !== cfg.size*cfg.size-1) {
-                let pr = Math.floor(rand/cfg.size), pc = rand%cfg.size;
-                let near = false;
-                lockIdx.forEach(idx => {
-                    if(Math.abs(Math.floor(idx/cfg.size)-pr) + Math.abs((idx%cfg.size)-pc) < 2) near = true;
-                });
-                if(!near) lockIdx.add(rand);
+        // 2. 隨機標記「死路格子」(完全不通電的裝飾格子)
+        let deadCount = 0;
+        while(deadCount < cfg.deadTiles) {
+            let dr = Math.floor(Math.random()*cfg.size), dc = Math.floor(Math.random()*cfg.size);
+            if(grid[dr][dc].real.length === 0) {
+                grid[dr][dc].isDead = true;
+                grid[dr][dc].fake = [0,1,2,3].sort(() => 0.5 - Math.random()).slice(0, 2);
+                deadCount++;
             }
-            attempts++;
+        }
+
+        // 3. 固定塊佈置 (更嚴密的間隔)
+        let lockIdx = new Set();
+        let flatPath = path.map(p => p[0]*cfg.size + p[1]);
+        flatPath.sort(() => 0.5 - Math.random());
+        for(let idx of flatPath) {
+            if(lockIdx.size >= cfg.locks) break;
+            if(idx === 0 || idx === cfg.size*cfg.size-1) continue;
+            let pr = Math.floor(idx/cfg.size), pc = idx%cfg.size;
+            let clear = true;
+            lockIdx.forEach(l => {
+                if(Math.abs(Math.floor(l/cfg.size)-pr) + Math.abs((l%cfg.size)-pc) < 2) clear = false;
+            });
+            if(clear) lockIdx.add(idx);
         }
 
         for(let r=0; r<cfg.size; r++) {
@@ -160,12 +174,12 @@
                 let data = grid[r][c];
                 const idx = r*cfg.size + c;
 
-                // 注入偽裝 T 型邏輯
-                if(data.real.length > 0 && Math.random() < cfg.fakeChance) {
+                // 填入混淆線路
+                if(!data.isDead && data.real.length > 0 && Math.random() < cfg.fakeChance) {
                     let possible = [0,1,2,3].filter(d => !data.real.includes(d));
                     data.fake.push(possible[Math.floor(Math.random()*possible.length)]);
-                } else if(data.real.length === 0) {
-                    // 死路塊填充
+                } else if (!data.isDead && data.real.length === 0) {
+                    // 非正確路徑的普通格子填充
                     data.fake = [[0,2],[1,3],[0,1,2]][Math.floor(Math.random()*3)];
                 }
 
@@ -174,22 +188,16 @@
                 let rot = lockIdx.has(idx) ? 0 : Math.floor(Math.random()*4);
 
                 const tileObj = {
-                    element: wrap,
-                    real: data.real,
-                    fake: data.fake,
-                    rot: rot,
+                    element: wrap, real: data.real, fake: data.fake, rot: rot,
                     isLocked: lockIdx.has(idx),
-                    getPowerExits: function() { return this.real.map(d => (d + this.rot) % 4); },
-                    getFakeExits: function() { return this.fake.map(d => (d + this.rot) % 4); }
+                    getPowerExits: function() { return this.real.map(d => (d + this.rot) % 4); }
                 };
 
-                // 畫實線
                 tileObj.real.forEach(d => {
                     let w = document.createElement('div');
                     w.className = 'wire ' + ['w-up','w-right','w-down','w-left'][d];
                     wrap.appendChild(w);
                 });
-                // 畫假線 (接觸不良)
                 tileObj.fake.forEach(d => {
                     let w = document.createElement('div');
                     w.className = 'wire fake ' + ['w-up','w-right','w-down','w-left'][d];
@@ -212,7 +220,7 @@
 
     function checkCircuit() {
         const size = levels[currentLvl].size;
-        tiles.forEach(t => { t.element.classList.remove('powered', 'flicker'); });
+        tiles.forEach(t => t.element.classList.remove('powered', 'flicker'));
 
         const powered = new Set(), queue = [];
         if(tiles[0].getPowerExits().includes(3)) queue.push(0);
@@ -222,8 +230,6 @@
             if(powered.has(idx)) continue;
             powered.add(idx);
             tiles[idx].element.classList.add('powered');
-            
-            // 接觸不良視覺提示：如果這格通電，且這格有假線，觸發閃爍
             if(tiles[idx].fake.length > 0) tiles[idx].element.classList.add('flicker');
 
             const r = Math.floor(idx/size), c = idx%size;
@@ -266,7 +272,12 @@
         o.style.display = 'flex';
     }
 
-    function handleBtnClick() { currentLvl = (document.getElementById('action-btn').innerText === "NEXT LEVEL") ? currentLvl+1 : 0; startGame(); }
+    function handleBtnClick() { 
+        if(document.getElementById('action-btn').innerText === "NEXT LEVEL") currentLvl++; 
+        else currentLvl = 0;
+        timeLeft = 60;
+        startGame(); 
+    }
 
     startGame();
 </script>
