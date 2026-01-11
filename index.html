@@ -1,9 +1,11 @@
+HTML
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RE2 CIRCUIT PUZZLE - HARDCORE</title>
+    <title>RE2 CIRCUIT PUZZLE - STRANGER</title>
     <style>
         @font-face {
             font-family: 'RE_Font';
@@ -26,14 +28,15 @@
             align-items: center; 
             margin: 0; height: 100vh; justify-content: center;
             overflow: hidden;
-            background-image: radial-gradient(circle, #111 0%, #000 100%);
+            background-image: radial-gradient(circle, #151515 0%, #000 100%);
         }
 
-        h2 { color: var(--re-red); text-transform: uppercase; letter-spacing: 5px; margin-bottom: 10px; font-size: 2em; text-shadow: 2px 2px 5px #000; }
+        h2 { color: var(--re-red); text-transform: uppercase; letter-spacing: 5px; margin-bottom: 10px; font-size: 2em; text-shadow: 2px 2px 10px #000; }
 
         #info-panel { 
             margin-bottom: 20px; font-size: 1.2em; display: flex; gap: 40px; 
             background: rgba(20, 20, 20, 0.9); padding: 10px 30px; border: 1px solid #333;
+            box-shadow: 0 0 15px rgba(0,0,0,0.5);
         }
 
         .timer { color: #f00; font-weight: bold; }
@@ -41,38 +44,33 @@
 
         #game-container { 
             position: relative; padding: 50px; background: #151515; border: 4px solid #222;
-            box-shadow: 0 0 50px rgba(0,0,0,1);
+            box-shadow: 0 0 80px rgba(0,0,0,1);
         }
 
-        #game-board { display: grid; gap: 6px; background: #000; padding: 6px; }
+        #game-board { display: grid; gap: 6px; background: #000; padding: 6px; border: 2px solid #333; }
 
-        /* 起點終點 */
         .port-label { position: absolute; font-size: 14px; color: #555; text-transform: uppercase; }
         #start-label { left: 15px; top: 75px; color: var(--pwr-color); }
         #end-label { right: 15px; bottom: 75px; }
 
-        /* 方塊與線路 */
         .tile { 
             width: 75px; height: 75px; background: #1a1a1a; 
             cursor: pointer; position: relative; transition: transform 0.2s;
         }
         .tile:hover:not(.locked) { background: #252525; }
 
-        /* 鎖定方塊 (無法旋轉) */
+        /* Locked Tile */
         .tile.locked { 
             cursor: not-allowed; 
             background: var(--broken-color);
-            border: 1px solid #f00;
-            box-shadow: inset 0 0 10px #000;
+            border: 1px solid #600;
         }
         .tile.locked::before {
-            content: 'LOCKED'; position: absolute; font-size: 8px; color: #f00;
-            top: 2px; left: 2px; z-index: 10;
+            content: 'LOCKED'; position: absolute; font-size: 9px; color: #f00;
+            top: 2px; left: 2px; z-index: 10; opacity: 0.7;
         }
 
-        .wire { position: absolute; background: #333; z-index: 1; }
-        
-        /* 損壞的線路 (Dead End) */
+        .wire { position: absolute; background: #333; z-index: 1; transition: background 0.3s; }
         .wire.dead { background: #222 !important; border: 1px dashed #444; }
 
         .tile::after {
@@ -87,29 +85,32 @@
 
         .powered .wire:not(.dead), .powered::after { 
             background: var(--pwr-color) !important; 
-            box-shadow: 0 0 12px var(--pwr-color); 
+            box-shadow: 0 0 15px var(--pwr-color); 
         }
 
-        /* 覆蓋層 */
+        /* Overlay */
         .overlay { 
             position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
             background: rgba(0,0,0,0.98); display: none; 
             flex-direction: column; justify-content: center; align-items: center; z-index: 100; 
+            text-align: center; padding: 20px;
         }
         
-        #status-text { font-size: 6em; margin-bottom: 30px; font-family: 'RE_Font', serif; letter-spacing: 5px; }
-        .dead-text { color: #f00; text-shadow: 0 0 20px #f00; animation: blur 2s infinite; }
-        .alive-text { color: #0f0; text-shadow: 0 0 20px #0f0; }
+        #status-text { font-size: 5em; margin-bottom: 20px; font-family: 'RE_Font', serif; letter-spacing: 3px; line-height: 1.2; }
+        .dead-text { color: #f00; text-shadow: 0 0 25px #f00; animation: blur 2s infinite; }
+        .alive-text { color: #0f0; text-shadow: 0 0 25px #0f0; }
+        .stranger-text { color: #f1c40f; font-size: 3em !important; text-shadow: 0 0 20px rgba(241, 196, 15, 0.5); }
 
-        button { 
+        #action-btn { 
             background: transparent; color: #fff; border: 1px solid #666; 
             padding: 15px 50px; cursor: pointer; font-size: 1.5em; 
             font-family: 'RE_Font', sans-serif; transition: 0.3s;
         }
-        button:hover { background: #800; border-color: #f00; }
+        #action-btn:hover { background: #800; border-color: #f00; }
+        #action-btn.hidden { display: none; }
 
         @keyframes flicker { 0% { opacity: 1; } 50% { opacity: 0.2; } 100% { opacity: 1; } }
-        @keyframes blur { 0% { filter: blur(0px); } 50% { filter: blur(2px); } 100% { filter: blur(0px); } }
+        @keyframes blur { 0% { filter: blur(0px); } 50% { filter: blur(3px); } 100% { filter: blur(0px); } }
     </style>
 </head>
 <body>
@@ -143,6 +144,7 @@
     function startGame() {
         isLocked = false;
         document.getElementById('overlay').style.display = 'none';
+        document.getElementById('action-btn').classList.remove('hidden');
         const config = levels[currentLvl];
         timeLeft = 60;
         document.getElementById('lvl-display').innerText = currentLvl + 1;
@@ -157,7 +159,6 @@
         boardEl.style.gridTemplateColumns = `repeat(${size}, 75px)`;
         tiles = [];
 
-        // 1. 生成一條必通主徑
         let path = [];
         let curR = 0, curC = 0;
         path.push({r:0, c:0});
@@ -173,78 +174,45 @@
 
         for(let i=0; i<path.length; i++) {
             if(i > 0) {
-                const prev = path[i-1];
-                const curr = path[i];
+                const prev = path[i-1], curr = path[i];
                 if(curr.r > prev.r) { boardData[curr.r][curr.c].exits.push(0); boardData[prev.r][prev.c].exits.push(2); }
                 else { boardData[curr.r][curr.c].exits.push(3); boardData[prev.r][prev.c].exits.push(1); }
             }
         }
 
-        // 2. 渲染並隨機加入鎖定與無效線路
         for (let r = 0; r < size; r++) {
             for (let c = 0; c < size; c++) {
                 const idx = r * size + c;
                 let data = boardData[r][c];
-                
-                // 如果是空位，隨機填滿
-                if(data.exits.length === 0) {
-                    data.exits = [0,1,2,3].sort(() => .5 - Math.random()).slice(0, 2);
-                }
-                
-                // 隨機在第2,3關增加無效線路 (外表有線但不會通)
-                if(currentLvl > 0 && Math.random() > 0.7) {
-                    let deadDir = [0,1,2,3].find(d => !data.exits.includes(d));
-                    if(deadDir !== undefined) data.isDead.push(deadDir);
+                if(data.exits.length === 0) data.exits = [0,1,2,3].sort(() => .5 - Math.random()).slice(0, 2);
+                if(currentLvl > 0 && Math.random() > 0.75) {
+                    let dDir = [0,1,2,3].find(d => !data.exits.includes(d));
+                    if(dDir !== undefined) data.isDead.push(dDir);
                 }
 
                 const tileWrap = document.createElement('div');
                 tileWrap.className = 'tile';
-                
-                // 隨機鎖定某些方塊 (除了起點和終點)
-                let isTileLocked = false;
-                if(lockCount > 0 && idx !== 0 && idx !== (size*size-1) && Math.random() > 0.6) {
-                    tileWrap.classList.add('locked');
-                    isTileLocked = true;
-                    lockCount--;
-                }
+                let isTileLocked = (lockCount > 0 && idx !== 0 && idx !== (size*size-1) && Math.random() > 0.6);
+                if(isTileLocked) { tileWrap.classList.add('locked'); lockCount--; }
 
                 let rotation = isTileLocked ? 0 : Math.floor(Math.random() * 4);
-                
                 const tileObj = {
-                    element: tileWrap,
-                    baseExits: [...new Set(data.exits)],
-                    deadExits: data.isDead,
-                    currentRotation: rotation,
-                    isLocked: isTileLocked,
-                    getActualExits: function() {
-                        return this.baseExits.map(ex => (ex + this.currentRotation) % 4);
-                    },
-                    getActualDead: function() {
-                        return this.deadExits.map(ex => (ex + this.currentRotation) % 4);
-                    }
+                    element: tileWrap, baseExits: [...new Set(data.exits)], deadExits: data.isDead,
+                    currentRotation: rotation, isLocked: isTileLocked,
+                    getActualExits: function() { return this.baseExits.map(ex => (ex + this.currentRotation) % 4); }
                 };
 
-                // 畫出正常線路
                 tileObj.baseExits.forEach(dir => {
-                    const w = document.createElement('div');
-                    w.className = 'wire ' + ['w-up', 'w-right', 'w-down', 'w-left'][dir];
+                    const w = document.createElement('div'); w.className = 'wire ' + ['w-up', 'w-right', 'w-down', 'w-left'][dir];
                     tileWrap.appendChild(w);
                 });
-                // 畫出死路 (看起來像線路但不會亮)
                 tileObj.deadExits.forEach(dir => {
-                    const w = document.createElement('div');
-                    w.className = 'wire dead ' + ['w-up', 'w-right', 'w-down', 'w-left'][dir];
+                    const w = document.createElement('div'); w.className = 'wire dead ' + ['w-up', 'w-right', 'w-down', 'w-left'][dir];
                     tileWrap.appendChild(w);
                 });
 
                 tileWrap.style.transform = `rotate(${rotation * 90}deg)`;
-                tileWrap.onclick = () => {
-                    if(isLocked || tileObj.isLocked) return;
-                    tileObj.currentRotation = (tileObj.currentRotation + 1) % 4;
-                    tileWrap.style.transform = `rotate(${tileObj.currentRotation * 90}deg)`;
-                    checkCircuit();
-                };
-
+                tileWrap.onclick = () => { if(isLocked || tileObj.isLocked) return; tileObj.currentRotation = (tileObj.currentRotation + 1) % 4; tileWrap.style.transform = `rotate(${tileObj.currentRotation * 90}deg)`; checkCircuit(); };
                 boardEl.appendChild(tileWrap);
                 tiles.push(tileObj);
             }
@@ -255,10 +223,7 @@
     function checkCircuit() {
         const size = levels[currentLvl].size;
         tiles.forEach(t => t.element.classList.remove('powered'));
-        const powered = new Set();
-        const queue = [0];
-
-        // 必須從左側入口接通
+        const powered = new Set(), queue = [0];
         if(!tiles[0].getActualExits().includes(3)) return;
 
         while(queue.length > 0) {
@@ -266,15 +231,11 @@
             if(powered.has(idx)) continue;
             powered.add(idx);
             tiles[idx].element.classList.add('powered');
-
-            const r = Math.floor(idx / size), c = idx % size;
-            const exits = tiles[idx].getActualExits();
-
+            const r = Math.floor(idx/size), c = idx%size, exits = tiles[idx].getActualExits();
             const neighbors = [{d:0,nr:r-1,nc:c,o:2},{d:1,nr:r,nc:c+1,o:3},{d:2,nr:r+1,nc:c,o:0},{d:3,nr:r,nc:c-1,o:1}];
-
             neighbors.forEach(nb => {
                 if(exits.includes(nb.d) && nb.nr>=0 && nb.nr<size && nb.nc>=0 && nb.nc<size) {
-                    const nIdx = nb.nr * size + nb.nc;
+                    const nIdx = nb.nr*size + nb.nc;
                     if(tiles[nIdx].getActualExits().includes(nb.o)) queue.push(nIdx);
                 }
             });
@@ -286,7 +247,7 @@
             clearInterval(timerId);
             setTimeout(() => {
                 if(currentLvl < levels.length - 1) showOverlay("ALIVE", "NEXT LEVEL");
-                else showOverlay("ALIVE", "ESCAPE SUCCESS");
+                else showOverlay("Congratulations, stranger! Please claim your reward.", "");
             }, 600);
         }
     }
@@ -302,18 +263,25 @@
         }, 1000);
     }
 
-    function endGame() {
-        isLocked = true;
-        clearInterval(timerId);
-        showOverlay("YOU ARE DEAD", "RETRY");
-    }
+    function endGame() { isLocked = true; clearInterval(timerId); showOverlay("YOU ARE DEAD", "RETRY"); }
 
     function showOverlay(msg, btnTxt) {
         const overlay = document.getElementById('overlay');
         const txt = document.getElementById('status-text');
+        const btn = document.getElementById('action-btn');
+        
         txt.innerText = msg;
-        txt.className = (msg === "ALIVE") ? "alive-text" : "dead-text";
-        document.getElementById('action-btn').innerText = btnTxt;
+        btn.innerText = btnTxt;
+        
+        // Final Reward State
+        if (msg.includes("Congratulations")) {
+            txt.className = "stranger-text";
+            btn.classList.add('hidden'); // 隱藏按鈕，無法回到第一關
+        } else {
+            txt.className = (msg === "ALIVE") ? "alive-text" : "dead-text";
+            btn.classList.remove('hidden');
+        }
+        
         overlay.style.display = 'flex';
     }
 
