@@ -1,24 +1,9 @@
-我明白你的意思了！之前的邏輯雖然加上了兩個出口，但因為路徑生成太過「正直」，導致兩條線路只是平行並進，完全沒有互相干擾，這確實讓雙出口失去了意義。
-
-要讓難度真正爆表，關鍵在於：兩條路徑必須「交叉」或「繞路」，且第 2、3 關的方塊應該要以 L 型（直角） 為主，強迫你必須在轉角處精確計算。
-
-我重新編寫了 「混亂演算法」：
-
-交叉路徑 (Crossed Paths)：第一條線路會從左上繞到右下，第二條線路會從左下繞到右上。它們會在中心點強烈干擾。
-
-單一接口 (Minimal Connectors)：大幅減少三向和四向方塊，增加大量 L 型方塊。這意味著一旦有一格轉錯，整條電路會完全斷掉。
-
-雜訊填充：非正確路徑的格子會填滿極具誤導性的線路，讓畫面看起來像迷宮。
-
-究極 Hardcore 版 index.html
-HTML
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RE2 CIRCUIT - INSANE MODE</title>
+    <title>RE2 CIRCUIT - MASTERMIND MODE</title>
     <style>
         @font-face {
             font-family: 'RE_Font';
@@ -49,22 +34,22 @@ HTML
 
         .timer { color: #f00; font-weight: bold; }
         #game-container { position: relative; padding: 60px; background: #111; border: 4px solid #333; box-shadow: 0 0 100px #000; }
-        #game-board { display: grid; gap: 5px; background: #000; padding: 5px; }
+        #game-board { display: grid; gap: 4px; background: #000; padding: 4px; border: 2px solid #222; }
 
         .port { position: absolute; font-size: 11px; font-weight: bold; text-transform: uppercase; z-index: 5; }
         .in-p { color: var(--pwr-color); left: 10px; }
         .out-p { right: 10px; color: #444; }
-        .out-p.active { color: var(--pwr-color); text-shadow: 0 0 10px var(--pwr-color); }
+        .out-p.active { color: var(--pwr-color); text-shadow: 0 0 15px var(--pwr-color); }
         
-        /* 入口與出口的位置錯開，強迫交叉 */
         .p-1 { top: 85px; }
         .p-2 { bottom: 85px; }
 
         .tile { width: 75px; height: 75px; background: #151515; cursor: pointer; position: relative; transition: transform 0.2s; box-sizing: border-box; }
+        .tile:hover:not(.locked) { background: #222; }
         .tile.locked { cursor: not-allowed; background: var(--locked-bg); border: 1px solid #600; }
         .tile.locked::before { content: 'FIXED'; position: absolute; font-size: 8px; color: #f00; top: 2px; left: 2px; z-index: 10; opacity: 0.8; }
 
-        .wire { position: absolute; background: #333; z-index: 1; transition: background 0.3s; }
+        .wire { position: absolute; background: #333; z-index: 1; transition: background 0.2s; }
         .tile::after { content: ''; position: absolute; width: 14px; height: 14px; background: #333; left: 30.5px; top: 30.5px; border-radius: 2px; z-index: 2; }
 
         .w-up { width: 8px; height: 38px; left: 33.5px; top: 0; }
@@ -78,8 +63,8 @@ HTML
         #status-text { font-size: 4em; margin-bottom: 20px; font-family: 'RE_Font', serif; letter-spacing: 2px; }
         .stranger-text { 
             color: #f1c40f; font-size: 2.5em !important; 
-            line-height: 2; letter-spacing: 10px !important; 
-            text-shadow: 0 0 25px rgba(241, 196, 15, 0.7); 
+            line-height: 2.2; letter-spacing: 12px !important; 
+            text-shadow: 0 0 30px rgba(241, 196, 15, 0.8); 
             white-space: pre-line;
         }
         .dead-text { color: #f00; text-shadow: 0 0 20px #f00; }
@@ -92,11 +77,11 @@ HTML
 </head>
 <body>
 
-    <h2>CIRCUIT CONTROL: INSANE</h2>
+    <h2>CIRCUIT MASTERMIND</h2>
     
     <div id="info-panel">
-        <div>LEVEL: <span id="lvl-display">1</span></div>
-        <div class="timer">TIMER: <span id="time-display">60</span></div>
+        <div>LVL: <span id="lvl-display">1</span></div>
+        <div class="timer">TIME: <span id="time-display">60</span></div>
     </div>
 
     <div id="game-container">
@@ -118,7 +103,7 @@ HTML
     const levels = [
         {size: 3, dual: false, locks: 0},
         {size: 4, dual: true, locks: 3},
-        {size: 5, dual: true, locks: 6}
+        {size: 5, dual: true, locks: 7}
     ];
     let currentLvl = 0, timeLeft = 60, timerId = null, tiles = [], isLocked = false;
 
@@ -129,11 +114,11 @@ HTML
         document.getElementById('lvl-display').innerText = currentLvl + 1;
         document.getElementById('in2-label').classList.toggle('hidden', !cfg.dual);
         document.getElementById('out2-label').classList.toggle('hidden', !cfg.dual);
-        generateInsaneLevel(cfg);
+        generateMastermindLevel(cfg);
         startTimer();
     }
 
-    function generateInsaneLevel(cfg) {
+    function generateMastermindLevel(cfg) {
         const boardEl = document.getElementById('game-board');
         boardEl.innerHTML = '';
         boardEl.style.gridTemplateColumns = `repeat(${cfg.size}, 75px)`;
@@ -141,41 +126,40 @@ HTML
 
         const gridData = Array.from({length: cfg.size}, () => Array.from({length: cfg.size}, () => ({exits:[]})));
         
-        // 核心改變：路徑必須大迴轉或交叉
-        // 路徑 A: 左上 (0,0) -> 右上 (0, size-1) 但強迫向下繞路
-        createWindingPath(gridData, 0, 0, 0, cfg.size-1, 3, 1, cfg.size, true);
-        
-        if(cfg.dual) {
-            // 路徑 B: 左下 (size-1, 0) -> 右下 (size-1, size-1) 強迫向上繞路
-            createWindingPath(gridData, cfg.size-1, 0, cfg.size-1, cfg.size-1, 3, 1, cfg.size, false);
-        }
+        // 1. 強制讓兩條線在中央「碰撞」並共享 T 型塊或交叉
+        let pathA = createPathNodes(0, 0, 0, cfg.size-1, cfg.size, true);
+        let pathB = cfg.dual ? createPathNodes(cfg.size-1, 0, cfg.size-1, cfg.size-1, cfg.size, false) : [];
+
+        // 轉化為出口數據
+        applyPathToGrid(gridData, pathA, 3, 1);
+        if(cfg.dual) applyPathToGrid(gridData, pathB, 3, 1);
 
         for(let r=0; r<cfg.size; r++){
             for(let c=0; c<cfg.size; c++){
                 let data = gridData[r][c];
-                // 填充更具迷惑性的 L 型方塊
+                
+                // 核心提升：善用 T 型 (三向) 方塊
                 if(data.exits.length === 0) {
-                    const lTypes = [[0,1],[1,2],[2,3],[3,0]];
-                    data.exits = lTypes[Math.floor(Math.random()*4)];
-                } else if (data.exits.length === 1) {
-                    // 確保至少有兩個出口
-                    let other = [0,1,2,3].filter(d => d !== data.exits[0]);
-                    data.exits.push(other[Math.floor(Math.random()*3)]);
+                    // 隨機填充 T 型或 L 型作為干擾
+                    const types = [[0,1,2], [1,2,3], [2,3,0], [3,0,1], [0,1], [1,2], [2,3], [3,0]];
+                    data.exits = types[Math.floor(Math.random()*types.length)];
+                } else if(data.exits.length === 2 && Math.random() > 0.5) {
+                    // 如果原本是路徑上的 L 型，有機率多加一向變成 T 型增加混淆
+                    let extra = [0,1,2,3].find(d => !data.exits.includes(d));
+                    data.exits.push(extra);
                 }
 
                 const tileWrap = document.createElement('div');
                 tileWrap.className = 'tile';
                 
-                // 增加鎖定方塊的戰略性
-                let isFixed = (cfg.locks > 0 && Math.random() > 0.6 && (r+c > 0));
+                // 提高固定塊比例，並放在關鍵位置
+                let isFixed = (cfg.locks > 0 && Math.random() > 0.5 && (r+c > 0));
                 if(isFixed) { tileWrap.classList.add('locked'); cfg.locks--; }
 
                 let rot = isFixed ? 0 : Math.floor(Math.random()*4);
                 const tileObj = {
-                    element: tileWrap,
-                    baseExits: [...new Set(data.exits)],
-                    currentRotation: rot, 
-                    isLocked: isFixed,
+                    element: tileWrap, baseExits: [...new Set(data.exits)],
+                    currentRotation: rot, isLocked: isFixed,
                     getActualExits: function() { return this.baseExits.map(ex => (ex + this.currentRotation) % 4); }
                 };
 
@@ -200,59 +184,43 @@ HTML
         checkCircuit();
     }
 
-    // 生成繞路路徑：強迫路徑在中間區域穿梭
-    function createWindingPath(grid, sr, sc, er, ec, startDir, endDir, size, wrapDown) {
-        let r = sr, c = sc;
-        grid[r][c].exits.push(startDir);
-        
-        // 簡單的人工繞路：先往中間走
-        let mid = Math.floor(size / 2);
+    function createPathNodes(sr, sc, er, ec, size, wrapDown) {
+        let nodes = [{r: sr, c: sc}];
+        let mid = Math.floor(size/2);
         let targetR = wrapDown ? mid : mid - 1;
+        
+        // 增加繞路深度
+        for(let c=1; c < size-1; c++) nodes.push({r: targetR, c: c});
+        nodes.push({r: targetR, c: size-1});
+        nodes.push({r: er, c: ec});
+        return nodes;
+    }
 
-        // 走到中間列
-        while(r !== targetR) {
-            let lastR = r;
-            r = (r < targetR) ? r+1 : r-1;
-            grid[lastR][c].exits.push(r > lastR ? 2 : 0);
-            grid[r][c].exits.push(r > lastR ? 0 : 2);
+    function applyPathToGrid(grid, nodes, startIn, endOut) {
+        grid[nodes[0].r][nodes[0].c].exits.push(startIn);
+        for(let i=0; i<nodes.length-1; i++) {
+            let curr = nodes[i], next = nodes[i+1];
+            let r = curr.r, c = curr.c;
+            while(r !== next.r || c !== next.c) {
+                let lr = r, lc = c;
+                if(r < next.r) r++; else if(r > next.r) r--; else if(c < next.c) c++;
+                let dirOut = (r > lr) ? 2 : (r < lr) ? 0 : (c > lc) ? 1 : 3;
+                let dirIn = (dirOut + 2) % 4;
+                grid[lr][lc].exits.push(dirOut);
+                grid[r][c].exits.push(dirIn);
+            }
         }
-
-        // 橫向移動到最後一格前
-        while(c < size - 1) {
-            let lastC = c;
-            c++;
-            grid[r][lastC].exits.push(1);
-            grid[r][c].exits.push(3);
-        }
-
-        // 回到終點列
-        while(r !== er) {
-            let lastR = r;
-            r = (r < er) ? r+1 : r-1;
-            grid[lastR][c].exits.push(r > lastR ? 2 : 0);
-            grid[r][c].exits.push(r > lastR ? 0 : 2);
-        }
-        grid[er][ec].exits.push(endDir);
+        grid[nodes[nodes.length-1].r][nodes[nodes.length-1].c].exits.push(endOut);
     }
 
     function checkCircuit() {
-        const cfg = levels[currentLvl];
-        const size = cfg.size;
-        
-        const p1 = trace(0, 3, size);
-        const p2 = cfg.dual ? trace((size-1)*size, 3, size) : new Set();
-
-        tiles.forEach((t, i) => {
-            if(p1.has(i) || (cfg.dual && p2.has(i))) t.element.classList.add('powered');
-            else t.element.classList.remove('powered');
-        });
-
+        const cfg = levels[currentLvl], size = cfg.size;
+        const p1 = trace(0, 3, size), p2 = cfg.dual ? trace((size-1)*size, 3, size) : new Set();
+        tiles.forEach((t, i) => { if(p1.has(i) || (cfg.dual && p2.has(i))) t.element.classList.add('powered'); else t.element.classList.remove('powered'); });
         const win1 = p1.has(size-1) && tiles[size-1].getActualExits().includes(1);
         const win2 = !cfg.dual || (p2.has(size*size-1) && tiles[size*size-1].getActualExits().includes(1));
-
         document.getElementById('out1-label').classList.toggle('active', win1);
         if(cfg.dual) document.getElementById('out2-label').classList.toggle('active', win2);
-
         if(win1 && win2) {
             isLocked = true; clearInterval(timerId);
             setTimeout(() => {
@@ -270,22 +238,17 @@ HTML
             if(powered.has(idx)) continue;
             powered.add(idx);
             const r = Math.floor(idx/size), c = idx%size, exits = tiles[idx].getActualExits();
-            const neighbors = [{d:0,nr:r-1,nc:c,o:2},{d:1,nr:r,nc:c+1,o:3},{d:2,nr:r+1,nc:c,o:0},{d:3,nr:r,nc:c-1,o:1}];
-            neighbors.forEach(n => {
-                if(exits.includes(n.d) && n.nr>=0 && n.nr<size && n.nc>=0 && n.nc<size) {
-                    const nIdx = n.nr*size + n.nc;
-                    if(tiles[nIdx].getActualExits().includes(n.opp || n.o)) queue.push(nIdx);
-                }
-            });
+            const nbs = [{d:0,nr:r-1,nc:c,o:2},{d:1,nr:r,nc:c+1,o:3},{d:2,nr:r+1,nc:c,o:0},{d:3,nr:r,nc:c-1,o:1}];
+            nbs.forEach(n => { if(exits.includes(n.d) && n.nr>=0 && n.nr<size && n.nc>=0 && n.nc<size) {
+                const nIdx = n.nr*size + n.nc; if(tiles[nIdx].getActualExits().includes(n.o)) queue.push(nIdx);
+            }});
         }
         return powered;
     }
 
     function startTimer() {
         clearInterval(timerId);
-        timerId = setInterval(() => {
-            if(!isLocked) { timeLeft--; document.getElementById('time-display').innerText = timeLeft; if(timeLeft <= 0) endGame(); }
-        }, 1000);
+        timerId = setInterval(() => { if(!isLocked) { timeLeft--; document.getElementById('time-display').innerText = timeLeft; if(timeLeft <= 0) endGame(); } }, 1000);
     }
 
     function endGame() { isLocked = true; clearInterval(timerId); showOverlay("YOU ARE DEAD", "RETRY"); }
