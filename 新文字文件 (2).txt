@@ -1,0 +1,237 @@
+HTML
+
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>RE2 電路逃生：限時挑戰</title>
+    <style>
+        :root { --pwr-color: #f1c40f; }
+        body { background-color: #0a0a0a; color: #eee; font-family: 'Courier New', Courier, monospace; display: flex; flex-direction: column; align-items: center; overflow: hidden; }
+        
+        h2 { color: #800; text-transform: uppercase; letter-spacing: 5px; margin: 10px; }
+        #info-panel { margin: 10px; font-size: 1.2em; display: flex; gap: 40px; }
+        .timer { color: #f00; font-weight: bold; text-shadow: 0 0 10px #f00; }
+        .timer.warning { animation: shake 0.1s infinite; }
+
+        /* 遊戲主面板 */
+        #game-board {
+            display: grid;
+            background: #222;
+            padding: 20px;
+            border: 4px solid #444;
+            position: relative;
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+        }
+
+        /* 電路方塊 */
+        .tile {
+            width: 80px; height: 80px; background: #111;
+            cursor: pointer; position: relative; transition: transform 0.2s, background 0.3s;
+            border: 1px solid #333;
+        }
+        .tile:hover { background: #1a1a1a; }
+
+        /* 線條與通電 */
+        .wire { position: absolute; background: #333; transition: all 0.3s; }
+        .tile::after { content: ''; position: absolute; width: 12px; height: 12px; background: #333; left: 34px; top: 34px; border-radius: 2px; }
+
+        .w-up { width: 8px; height: 40px; left: 36px; top: 0; }
+        .w-right { width: 40px; height: 8px; left: 40px; top: 36px; }
+        .w-down { width: 8px; height: 40px; left: 36px; top: 40px; }
+        .w-left { width: 40px; height: 8px; left: 0; top: 36px; }
+
+        .powered .wire, .powered::after { background: var(--pwr-color) !important; box-shadow: 0 0 15px var(--pwr-color); }
+
+        /* 介面按鈕 */
+        button { background: #400; color: white; border: none; padding: 10px 20px; cursor: pointer; font-family: inherit; margin-top: 15px; }
+        button:hover { background: #600; }
+
+        @keyframes shake {
+            0% { transform: translate(1px, 1px); }
+            50% { transform: translate(-1px, -1px); }
+            100% { transform: translate(1px, -1px); }
+        }
+
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 100; }
+    </style>
+</head>
+<body>
+
+    <h2>Circuit Breaker</h2>
+    
+    <div id="info-panel">
+        <div>LEVEL: <span id="lvl-display">1</span></div>
+        <div class="timer">TIME: <span id="time-display">30</span>s</div>
+    </div>
+
+    <div id="game-board"></div>
+
+    <div id="overlay" class="overlay">
+        <h1 id="status-text">GAME OVER</h1>
+        <button onclick="startGame()">RETRY</button>
+    </div>
+
+<script>
+    const levels = [
+        { size: 3, time: 30 },
+        { size: 4, time: 45 },
+        { size: 5, time: 60 }
+    ];
+
+    let currentLvl = 0;
+    let timeLeft = 0;
+    let timerId = null;
+    let tiles = [];
+    let isGameOver = false;
+
+    // 方塊類型 (0:上, 1:右, 2:下, 3:左)
+    const layouts = [[1,3], [0,2], [1,2], [0,1,2], [0,1,3], [2,3], [0,1], [0,3]];
+
+    function startGame() {
+        isGameOver = false;
+        document.getElementById('overlay').style.display = 'none';
+        const level = levels[currentLvl];
+        timeLeft = level.time;
+        document.getElementById('lvl-display').innerText = currentLvl + 1;
+        initBoard(level.size);
+        startTimer();
+    }
+
+    function initBoard(size) {
+        const boardEl = document.getElementById('game-board');
+        boardEl.innerHTML = '';
+        boardEl.style.gridTemplateColumns = `repeat(${size}, 80px)`;
+        tiles = [];
+
+        for (let i = 0; i < size * size; i++) {
+            const tileWrap = document.createElement('div');
+            tileWrap.className = 'tile';
+            
+            let rotationIdx = Math.floor(Math.random() * 4);
+            const layout = layouts[Math.floor(Math.random() * layouts.length)];
+            
+            const tileObj = {
+                id: i,
+                element: tileWrap,
+                baseExits: layout,
+                currentRotation: rotationIdx,
+                getActualExits: function() {
+                    return this.baseExits.map(ex => (ex + this.currentRotation) % 4);
+                }
+            };
+
+            layout.forEach(dir => {
+                const w = document.createElement('div');
+                w.className = 'wire ' + ['w-up', 'w-right', 'w-down', 'w-left'][dir];
+                tileWrap.appendChild(w);
+            });
+
+            tileWrap.style.transform = `rotate(${rotationIdx * 90}deg)`;
+            tileWrap.onclick = () => {
+                if(isGameOver) return;
+                tileObj.currentRotation = (tileObj.currentRotation + 1) % 4;
+                tileWrap.style.transform = `rotate(${tileObj.currentRotation * 90}deg)`;
+                updateCircuit(size);
+            };
+
+            boardEl.appendChild(tileWrap);
+            tiles.push(tileObj);
+        }
+        updateCircuit(size);
+    }
+
+    function startTimer() {
+        clearInterval(timerId);
+        const timerEl = document.querySelector('.timer');
+        timerId = setInterval(() => {
+            timeLeft--;
+            document.getElementById('time-display').innerText = timeLeft;
+            
+            if(timeLeft <= 10) timerEl.classList.add('warning');
+            else timerEl.classList.remove('warning');
+
+            if (timeLeft <= 0) {
+                endGame(false);
+            }
+        }, 1000);
+    }
+
+    function updateCircuit(size) {
+        tiles.forEach(t => t.element.classList.remove('powered'));
+        const poweredTiles = new Set();
+        const checkQueue = [];
+
+        // 每一列的第一個如果開口向左，視為起點
+        for(let r=0; r<size; r++) {
+            let idx = r * size;
+            if(tiles[idx].getActualExits().includes(3)) checkQueue.push(idx);
+        }
+
+        let head = 0;
+        while(head < checkQueue.length){
+            const currIdx = checkQueue[head++];
+            if(poweredTiles.has(currIdx)) continue;
+            poweredTiles.add(currIdx);
+            tiles[currIdx].element.classList.add('powered');
+
+            const currExits = tiles[currIdx].getActualExits();
+            const r = Math.floor(currIdx / size);
+            const c = currIdx % size;
+
+            const neighbors = [
+                { dir: 0, r: r-1, c: c, opp: 2 }, 
+                { dir: 1, r: r, c: c+1, opp: 3 }, 
+                { dir: 2, r: r+1, c: c, opp: 0 }, 
+                { dir: 3, r: r, c: c-1, opp: 1 }
+            ];
+
+            neighbors.forEach(nb => {
+                if(currExits.includes(nb.dir) && nb.r >= 0 && nb.r < size && nb.c >= 0 && nb.c < size) {
+                    const nextIdx = nb.r * size + nb.c;
+                    if(tiles[nextIdx].getActualExits().includes(nb.opp)) checkQueue.push(nextIdx);
+                }
+            });
+        }
+
+        // 勝利條件：最後一列的任何方塊連到右側
+        for(let r=0; r<size; r++) {
+            let idx = (r * size) + (size - 1);
+            if(poweredTiles.has(idx) && tiles[idx].getActualExits().includes(1)) {
+                if(currentLvl < levels.length - 1) {
+                    nextLevel();
+                } else {
+                    endGame(true);
+                }
+                break;
+            }
+        }
+    }
+
+    function nextLevel() {
+        clearInterval(timerId);
+        alert("Level Clear! 門鎖已解開，快往下一層！");
+        currentLvl++;
+        startGame();
+    }
+
+    function endGame(win) {
+        isGameOver = true;
+        clearInterval(timerId);
+        const overlay = document.getElementById('overlay');
+        const status = document.getElementById('status-text');
+        overlay.style.display = 'flex';
+        if(win) {
+            status.innerText = "YOU ESCAPED!";
+            status.style.color = "#0f0";
+            currentLvl = 0;
+        } else {
+            status.innerText = "YOU DIED";
+            status.style.color = "#f00";
+        }
+    }
+
+    startGame();
+</script>
+</body>
+</html>
