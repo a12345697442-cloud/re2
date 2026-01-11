@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RE2 電路解謎限時挑戰</title>
+    <title>RE電路解謎限時挑戰</title>
     <style>
         :root { --pwr-color: #f1c40f; --bg-color: #0d0d0d; }
         body { background-color: var(--bg-color); color: #eee; font-family: 'Courier New', Courier, monospace; display: flex; flex-direction: column; align-items: center; margin: 0; height: 100vh; justify-content: center; }
@@ -226,7 +226,7 @@
         const btnText = document.getElementById('action-btn').innerText;
         if(btnText === "NEXT LEVEL") {
             currentLvl++;
-        } else if(btnText === "PLAY AGAIN" || btnText === "RETRY") {
+        } else if(btnText === "You Are Dead" || btnText === "RETRY") {
             currentLvl = 0; // 失敗或重玩都回第一關
         }
         startGame();
@@ -236,3 +236,4 @@
 </script>
 </body>
 </html>
+
