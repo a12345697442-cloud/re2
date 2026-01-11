@@ -2,123 +2,117 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>RE2 電路逃生：限時挑戰</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RE2 電路解謎限時挑戰</title>
     <style>
-        :root { --pwr-color: #f1c40f; }
-        body { background-color: #0a0a0a; color: #eee; font-family: 'Courier New', Courier, monospace; display: flex; flex-direction: column; align-items: center; overflow: hidden; }
+        :root { --pwr-color: #f1c40f; --bg-color: #0d0d0d; }
+        body { background-color: var(--bg-color); color: #eee; font-family: 'Courier New', Courier, monospace; display: flex; flex-direction: column; align-items: center; margin: 0; height: 100vh; justify-content: center; }
         
-        h2 { color: #800; text-transform: uppercase; letter-spacing: 5px; margin: 10px; }
-        #info-panel { margin: 10px; font-size: 1.2em; display: flex; gap: 40px; }
-        .timer { color: #f00; font-weight: bold; text-shadow: 0 0 10px #f00; }
-        .timer.warning { animation: shake 0.1s infinite; }
+        /* 標題與資訊 */
+        h2 { color: #a00; text-transform: uppercase; letter-spacing: 4px; margin: 0 0 10px 0; }
+        #info-panel { margin-bottom: 15px; font-size: 1.1em; display: flex; gap: 30px; background: #222; padding: 10px 20px; border-radius: 5px; border: 1px solid #444; }
+        .timer { color: #f00; font-weight: bold; }
+        .timer.warning { animation: shake 0.1s infinite; text-shadow: 0 0 8px #f00; }
 
-        /* 遊戲主面板 */
-        #game-board {
-            display: grid;
-            background: #222;
-            padding: 20px;
-            border: 4px solid #444;
-            position: relative;
-            box-shadow: 0 0 50px rgba(0,0,0,0.8);
-        }
+        /* 遊戲主板 */
+        #game-container { position: relative; padding: 40px; background: #1a1a1a; border: 3px solid #333; box-shadow: 0 0 30px rgba(0,0,0,0.5); }
+        #game-board { display: grid; gap: 10px; }
 
-        /* 電路方塊 */
-        .tile {
-            width: 80px; height: 80px; background: #111;
-            cursor: pointer; position: relative; transition: transform 0.2s, background 0.3s;
-            border: 1px solid #333;
-        }
-        .tile:hover { background: #1a1a1a; }
+        /* 起點與終點標示 */
+        .port-label { position: absolute; font-size: 12px; font-weight: bold; color: #555; text-transform: uppercase; }
+        #start-label { left: 5px; top: 75px; color: var(--pwr-color); }
+        #end-label { right: 5px; bottom: 75px; }
+        .port-indicator { position: absolute; width: 10px; height: 30px; background: #333; }
+        #in-port { left: 30px; top: 65px; background: var(--pwr-color); box-shadow: 0 0 10px var(--pwr-color); }
+        #out-port { right: 30px; bottom: 65px; }
 
-        /* 線條與通電 */
+        /* 方塊與導線 */
+        .tile { width: 70px; height: 70px; background: #111; cursor: pointer; position: relative; transition: transform 0.2s, background 0.3s; border: 1px solid #222; }
+        .tile:hover { background: #181818; }
         .wire { position: absolute; background: #333; transition: all 0.3s; }
-        .tile::after { content: ''; position: absolute; width: 12px; height: 12px; background: #333; left: 34px; top: 34px; border-radius: 2px; }
+        .tile::after { content: ''; position: absolute; width: 10px; height: 10px; background: #333; left: 30px; top: 30px; border-radius: 2px; }
 
-        .w-up { width: 8px; height: 40px; left: 36px; top: 0; }
-        .w-right { width: 40px; height: 8px; left: 40px; top: 36px; }
-        .w-down { width: 8px; height: 40px; left: 36px; top: 40px; }
-        .w-left { width: 40px; height: 8px; left: 0; top: 36px; }
+        .w-up { width: 6px; height: 35px; left: 32px; top: 0; }
+        .w-right { width: 35px; height: 6px; left: 35px; top: 32px; }
+        .w-down { width: 6px; height: 35px; left: 32px; top: 35px; }
+        .w-left { width: 35px; height: 6px; left: 0; top: 32px; }
 
-        .powered .wire, .powered::after { background: var(--pwr-color) !important; box-shadow: 0 0 15px var(--pwr-color); }
+        /* 通電效果 */
+        .powered .wire, .powered::after { background: var(--pwr-color) !important; box-shadow: 0 0 12px var(--pwr-color); }
+        .win-glow { background: var(--pwr-color) !important; box-shadow: 0 0 20px var(--pwr-color) !important; color: #000 !important; }
 
-        /* 介面按鈕 */
-        button { background: #400; color: white; border: none; padding: 10px 20px; cursor: pointer; font-family: inherit; margin-top: 15px; }
-        button:hover { background: #600; }
+        /* 覆蓋層 (Game Over / Win) */
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 100; }
+        .overlay h1 { font-size: 3em; margin-bottom: 20px; letter-spacing: 10px; }
+        button { background: #600; color: white; border: 2px solid #a00; padding: 12px 30px; cursor: pointer; font-family: inherit; font-size: 1em; transition: 0.3s; }
+        button:hover { background: #a00; box-shadow: 0 0 15px #f00; }
 
-        @keyframes shake {
-            0% { transform: translate(1px, 1px); }
-            50% { transform: translate(-1px, -1px); }
-            100% { transform: translate(1px, -1px); }
-        }
-
-        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 100; }
-    </style>/* 
-@media (max-width: 600px) {
-    .tile {
-        width: 60px; /* 手機版方塊縮小一點 */
-        height: 60px;
-    }
-    #game-board {
-        grid-template-columns: repeat(var(--size), 60px) !important;
-        gap: 8px;
-    }
-    .w-up, .w-down { left: 26px; width: 6px; }
-    .w-left, .w-right { top: 26px; height: 6px; }
-    .tile::after { left: 24px; top: 24px; width: 10px; height: 10px; }
-}
+        @keyframes shake { 0% { transform: translate(1px, 1px); } 50% { transform: translate(-1px, -1px); } 100% { transform: translate(1px, -1px); } }
+        
+        /* 手機適應 */
+        @media (max-width: 500px) { .tile { width: 55px; height: 55px; } #game-container { padding: 30px; } }
+    </style>
 </head>
 <body>
 
-    <h2>Circuit Breaker</h2>
+    <h2>Circuit Control</h2>
     
     <div id="info-panel">
-        <div>LEVEL: <span id="lvl-display">1</span></div>
-        <div class="timer">TIME: <span id="time-display">30</span>s</div>
+        <div>LEVEL: <span id="lvl-display">1</span>/3</div>
+        <div class="timer">TIME: <span id="time-display">60</span>s</div>
     </div>
 
-    <div id="game-board"></div>
+    <div id="game-container">
+        <div id="start-label" class="port-label">Power In</div>
+        <div id="in-port" class="port-indicator"></div>
+        
+        <div id="game-board"></div>
+        
+        <div id="out-port" class="port-indicator"></div>
+        <div id="end-label" class="port-label">Exit</div>
+    </div>
 
     <div id="overlay" class="overlay">
-        <h1 id="status-text">GAME OVER</h1>
-        <button onclick="startGame()">RETRY</button>
+        <h1 id="status-text">FAILED</h1>
+        <button id="action-btn" onclick="handleBtnClick()">RETRY</button>
     </div>
 
 <script>
     const levels = [
-        { size: 3, time: 30 },
-        { size: 4, time: 45 },
+        { size: 3, time: 60 },
+        { size: 4, time: 60 },
         { size: 5, time: 60 }
     ];
 
     let currentLvl = 0;
-    let timeLeft = 0;
+    let timeLeft = 60;
     let timerId = null;
     let tiles = [];
     let isGameOver = false;
+    let hasWonCurrentLevel = false;
 
-    // 方塊類型 (0:上, 1:右, 2:下, 3:左)
     const layouts = [[1,3], [0,2], [1,2], [0,1,2], [0,1,3], [2,3], [0,1], [0,3]];
 
     function startGame() {
         isGameOver = false;
+        hasWonCurrentLevel = false;
         document.getElementById('overlay').style.display = 'none';
-        const level = levels[currentLvl];
-        timeLeft = level.time;
+        const config = levels[currentLvl];
+        timeLeft = config.time;
         document.getElementById('lvl-display').innerText = currentLvl + 1;
-        initBoard(level.size);
+        initBoard(config.size);
         startTimer();
     }
 
     function initBoard(size) {
         const boardEl = document.getElementById('game-board');
         boardEl.innerHTML = '';
-        boardEl.style.gridTemplateColumns = `repeat(${size}, 80px)`;
+        boardEl.style.gridTemplateColumns = `repeat(${size}, auto)`;
         tiles = [];
 
         for (let i = 0; i < size * size; i++) {
             const tileWrap = document.createElement('div');
             tileWrap.className = 'tile';
-            
             let rotationIdx = Math.floor(Math.random() * 4);
             const layout = layouts[Math.floor(Math.random() * layouts.length)];
             
@@ -140,7 +134,7 @@
 
             tileWrap.style.transform = `rotate(${rotationIdx * 90}deg)`;
             tileWrap.onclick = () => {
-                if(isGameOver) return;
+                if(isGameOver || hasWonCurrentLevel) return;
                 tileObj.currentRotation = (tileObj.currentRotation + 1) % 4;
                 tileWrap.style.transform = `rotate(${tileObj.currentRotation * 90}deg)`;
                 updateCircuit(size);
@@ -156,28 +150,23 @@
         clearInterval(timerId);
         const timerEl = document.querySelector('.timer');
         timerId = setInterval(() => {
+            if(hasWonCurrentLevel) return;
             timeLeft--;
             document.getElementById('time-display').innerText = timeLeft;
-            
             if(timeLeft <= 10) timerEl.classList.add('warning');
             else timerEl.classList.remove('warning');
-
-            if (timeLeft <= 0) {
-                endGame(false);
-            }
+            if (timeLeft <= 0) endGame(false);
         }, 1000);
     }
 
     function updateCircuit(size) {
         tiles.forEach(t => t.element.classList.remove('powered'));
+        document.getElementById('out-port').classList.remove('win-glow');
         const poweredTiles = new Set();
         const checkQueue = [];
 
-        // 每一列的第一個如果開口向左，視為起點
-        for(let r=0; r<size; r++) {
-            let idx = r * size;
-            if(tiles[idx].getActualExits().includes(3)) checkQueue.push(idx);
-        }
+        // 起點：左上角方塊必須有向左開口
+        if(tiles[0].getActualExits().includes(3)) checkQueue.push(0);
 
         let head = 0;
         while(head < checkQueue.length){
@@ -189,63 +178,61 @@
             const currExits = tiles[currIdx].getActualExits();
             const r = Math.floor(currIdx / size);
             const c = currIdx % size;
-
-            const neighbors = [
-                { dir: 0, r: r-1, c: c, opp: 2 }, 
-                { dir: 1, r: r, c: c+1, opp: 3 }, 
-                { dir: 2, r: r+1, c: c, opp: 0 }, 
-                { dir: 3, r: r, c: c-1, opp: 1 }
-            ];
+            const neighbors = [{d:0,r:r-1,c:c,o:2},{d:1,r:r,c:c+1,o:3},{d:2,r:r+1,c:c,o:0},{d:3,r:r,c:c-1,o:1}];
 
             neighbors.forEach(nb => {
-                if(currExits.includes(nb.dir) && nb.r >= 0 && nb.r < size && nb.c >= 0 && nb.c < size) {
-                    const nextIdx = nb.r * size + nb.c;
-                    if(tiles[nextIdx].getActualExits().includes(nb.opp)) checkQueue.push(nextIdx);
+                if(currExits.includes(nb.d) && nb.r>=0 && nb.r<size && nb.c>=0 && nb.c<size) {
+                    const nIdx = nb.r * size + nb.c;
+                    if(tiles[nIdx].getActualExits().includes(nb.o)) checkQueue.push(nIdx);
                 }
             });
         }
 
-        // 勝利條件：最後一列的任何方塊連到右側
-        for(let r=0; r<size; r++) {
-            let idx = (r * size) + (size - 1);
-            if(poweredTiles.has(idx) && tiles[idx].getActualExits().includes(1)) {
-                if(currentLvl < levels.length - 1) {
-                    nextLevel();
-                } else {
-                    endGame(true);
-                }
-                break;
-            }
+        // 終點：右下角方塊必須有向右開口
+        const endIdx = tiles.length - 1;
+        if(poweredTiles.has(endIdx) && tiles[endIdx].getActualExits().includes(1)) {
+            document.getElementById('out-port').classList.add('win-glow');
+            winLevel();
         }
     }
 
-    function nextLevel() {
+    function winLevel() {
+        hasWonCurrentLevel = true;
         clearInterval(timerId);
-        alert("Level Clear! 門鎖已解開，快往下一層！");
-        currentLvl++;
-        startGame();
+        setTimeout(() => {
+            if(currentLvl < levels.length - 1) {
+                showOverlay("LEVEL CLEAR", "NEXT LEVEL");
+            } else {
+                showOverlay("YOU ESCAPED", "PLAY AGAIN");
+            }
+        }, 500);
     }
 
     function endGame(win) {
         isGameOver = true;
         clearInterval(timerId);
+        showOverlay("FAILED", "RETRY");
+    }
+
+    function showOverlay(text, btnText) {
         const overlay = document.getElementById('overlay');
-        const status = document.getElementById('status-text');
+        document.getElementById('status-text').innerText = text;
+        document.getElementById('action-btn').innerText = btnText;
+        document.getElementById('status-text').style.color = (text === "FAILED") ? "#f00" : "#f1c40f";
         overlay.style.display = 'flex';
-        if(win) {
-            status.innerText = "YOU ESCAPED!";
-            status.style.color = "#0f0";
-            currentLvl = 0;
-        } else {
-            status.innerText = "YOU DIED";
-            status.style.color = "#f00";
+    }
+
+    function handleBtnClick() {
+        const btnText = document.getElementById('action-btn').innerText;
+        if(btnText === "NEXT LEVEL") {
+            currentLvl++;
+        } else if(btnText === "PLAY AGAIN" || btnText === "RETRY") {
+            currentLvl = 0; // 失敗或重玩都回第一關
         }
+        startGame();
     }
 
     startGame();
 </script>
 </body>
-
 </html>
-
-
