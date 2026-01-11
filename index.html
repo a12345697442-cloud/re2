@@ -1,11 +1,9 @@
-HTML
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RE CIRCUIT PUZZLE - STRANGER</title>
+    <title>RE2 CIRCUIT - HARDCORE STRANGER</title>
     <style>
         @font-face {
             font-family: 'RE_Font';
@@ -16,63 +14,55 @@ HTML
             --pwr-color: #f1c40f; 
             --bg-color: #050505;
             --re-red: #8b0000;
-            --broken-color: #400;
+            --locked-bg: #2b0000;
         }
 
         body { 
             background-color: var(--bg-color); 
             color: #ccc; 
             font-family: 'RE_Font', 'Courier New', sans-serif; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
+            display: flex; flex-direction: column; align-items: center; 
             margin: 0; height: 100vh; justify-content: center;
-            overflow: hidden;
-            background-image: radial-gradient(circle, #151515 0%, #000 100%);
+            background-image: radial-gradient(circle, #1a1a1a 0%, #000 100%);
         }
 
-        h2 { color: var(--re-red); text-transform: uppercase; letter-spacing: 5px; margin-bottom: 10px; font-size: 2em; text-shadow: 2px 2px 10px #000; }
+        h2 { color: var(--re-red); text-transform: uppercase; letter-spacing: 5px; margin-bottom: 10px; font-size: 2em; }
 
         #info-panel { 
-            margin-bottom: 20px; font-size: 1.2em; display: flex; gap: 40px; 
-            background: rgba(20, 20, 20, 0.9); padding: 10px 30px; border: 1px solid #333;
-            box-shadow: 0 0 15px rgba(0,0,0,0.5);
+            margin-bottom: 15px; font-size: 1.2em; display: flex; gap: 40px; 
+            background: rgba(20, 20, 20, 0.9); padding: 10px 30px; border: 1px solid #444;
         }
 
-        .timer { color: #f00; font-weight: bold; }
+        .timer { color: #f00; }
         .timer.warning { animation: flicker 0.2s infinite; }
 
         #game-container { 
-            position: relative; padding: 50px; background: #151515; border: 4px solid #222;
-            box-shadow: 0 0 80px rgba(0,0,0,1);
+            position: relative; padding: 50px; background: #111; border: 4px solid #333;
+            box-shadow: 0 0 100px #000;
         }
 
-        #game-board { display: grid; gap: 6px; background: #000; padding: 6px; border: 2px solid #333; }
+        #game-board { display: grid; gap: 4px; background: #000; padding: 4px; }
 
-        .port-label { position: absolute; font-size: 14px; color: #555; text-transform: uppercase; }
+        .port-label { position: absolute; font-size: 14px; color: #444; text-transform: uppercase; }
         #start-label { left: 15px; top: 75px; color: var(--pwr-color); }
         #end-label { right: 15px; bottom: 75px; }
 
         .tile { 
-            width: 75px; height: 75px; background: #1a1a1a; 
+            width: 75px; height: 75px; background: #151515; 
             cursor: pointer; position: relative; transition: transform 0.2s;
         }
-        .tile:hover:not(.locked) { background: #252525; }
+        .tile:hover:not(.locked) { background: #222; }
 
-        /* Locked Tile */
         .tile.locked { 
-            cursor: not-allowed; 
-            background: var(--broken-color);
-            border: 1px solid #600;
+            cursor: not-allowed; background: var(--locked-bg);
+            border: 1px solid #500;
         }
         .tile.locked::before {
-            content: 'LOCKED'; position: absolute; font-size: 9px; color: #f00;
-            top: 2px; left: 2px; z-index: 10; opacity: 0.7;
+            content: 'FIXED'; position: absolute; font-size: 9px; color: #f00;
+            top: 2px; left: 2px; z-index: 10;
         }
 
         .wire { position: absolute; background: #333; z-index: 1; transition: background 0.3s; }
-        .wire.dead { background: #222 !important; border: 1px dashed #444; }
-
         .tile::after {
             content: ''; position: absolute; width: 14px; height: 14px;
             background: #333; left: 30.5px; top: 30.5px; border-radius: 2px; z-index: 2;
@@ -83,43 +73,41 @@ HTML
         .w-down { width: 8px; height: 38px; left: 33.5px; top: 37.5px; }
         .w-left { width: 38px; height: 8px; left: 0; top: 33.5px; }
 
-        .powered .wire:not(.dead), .powered::after { 
+        .powered .wire, .powered::after { 
             background: var(--pwr-color) !important; 
             box-shadow: 0 0 15px var(--pwr-color); 
         }
 
-        /* Overlay */
         .overlay { 
             position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
             background: rgba(0,0,0,0.98); display: none; 
             flex-direction: column; justify-content: center; align-items: center; z-index: 100; 
-            text-align: center; padding: 20px;
+            text-align: center;
         }
         
-        #status-text { font-size: 5em; margin-bottom: 20px; font-family: 'RE_Font', serif; letter-spacing: 3px; line-height: 1.2; }
-        .dead-text { color: #f00; text-shadow: 0 0 25px #f00; animation: blur 2s infinite; }
-        .alive-text { color: #0f0; text-shadow: 0 0 25px #0f0; }
-        .stranger-text { color: #f1c40f; font-size: 3em !important; text-shadow: 0 0 20px rgba(241, 196, 15, 0.5); }
+        #status-text { font-size: 4em; margin-bottom: 20px; font-family: 'RE_Font', serif; }
+        .dead-text { color: #f00; text-shadow: 0 0 20px #f00; }
+        .alive-text { color: #0f0; text-shadow: 0 0 20px #0f0; }
+        .stranger-text { color: #f1c40f; font-size: 2.5em !important; line-height: 1.5; }
 
         #action-btn { 
             background: transparent; color: #fff; border: 1px solid #666; 
             padding: 15px 50px; cursor: pointer; font-size: 1.5em; 
-            font-family: 'RE_Font', sans-serif; transition: 0.3s;
+            font-family: 'RE_Font', sans-serif;
         }
         #action-btn:hover { background: #800; border-color: #f00; }
-        #action-btn.hidden { display: none; }
+        .hidden { display: none; }
 
-        @keyframes flicker { 0% { opacity: 1; } 50% { opacity: 0.2; } 100% { opacity: 1; } }
-        @keyframes blur { 0% { filter: blur(0px); } 50% { filter: blur(3px); } 100% { filter: blur(0px); } }
+        @keyframes flicker { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
     </style>
 </head>
 <body>
 
-    <h2>POWER GRID CONTROL</h2>
+    <h2>CIRCUIT CONTROL HARDCORE</h2>
     
     <div id="info-panel">
-        <div>LEVEL: <span id="lvl-display">1</span> / 3</div>
-        <div class="timer">TIME: <span id="time-display">60</span>S</div>
+        <div>LVL: <span id="lvl-display">1</span></div>
+        <div class="timer">SEC: <span id="time-display">60</span></div>
     </div>
 
     <div id="game-container">
@@ -134,7 +122,7 @@ HTML
     </div>
 
 <script>
-    const levels = [{size:3, lock:0}, {size:4, lock:2}, {size:5, lock:4}];
+    const levels = [{size:3, lock:0}, {size:4, lock:3}, {size:5, lock:6}];
     let currentLvl = 0;
     let timeLeft = 60;
     let timerId = null;
@@ -144,75 +132,83 @@ HTML
     function startGame() {
         isLocked = false;
         document.getElementById('overlay').style.display = 'none';
-        document.getElementById('action-btn').classList.remove('hidden');
         const config = levels[currentLvl];
         timeLeft = 60;
         document.getElementById('lvl-display').innerText = currentLvl + 1;
-        document.getElementById('time-display').innerText = timeLeft;
-        generateHardcoreBoard(config.size, config.lock);
+        generateEvilBoard(config.size, config.lock);
         startTimer();
     }
 
-    function generateHardcoreBoard(size, lockCount) {
+    function generateEvilBoard(size, lockCount) {
         const boardEl = document.getElementById('game-board');
         boardEl.innerHTML = '';
         boardEl.style.gridTemplateColumns = `repeat(${size}, 75px)`;
         tiles = [];
 
+        // 1. 生成唯一正確路徑
+        let solution = new Set();
         let path = [];
-        let curR = 0, curC = 0;
-        path.push({r:0, c:0});
-        while(curR < size-1 || curC < size-1) {
-            if(curR < size-1 && (Math.random() > 0.5 || curC === size-1)) curR++;
-            else curC++;
-            path.push({r:curR, c:curC});
+        let r = 0, c = 0;
+        path.push({r, c});
+        while(r < size-1 || c < size-1) {
+            if(r < size-1 && (Math.random() > 0.6 || c === size-1)) r++;
+            else c++;
+            path.push({r, c});
+            solution.add(`${r},${c}`);
         }
 
-        const boardData = Array.from({length: size}, () => Array.from({length: size}, () => ({exits:[], isDead:[]})));
-        boardData[0][0].exits.push(3);
-        boardData[size-1][size-1].exits.push(1);
+        // 2. 建立資料結構
+        const grid = Array.from({length: size}, () => Array.from({length: size}, () => ({exits:[]})));
+        grid[0][0].exits.push(3); // 起點輸入
+        grid[size-1][size-1].exits.push(1); // 終點輸出
 
-        for(let i=0; i<path.length; i++) {
-            if(i > 0) {
-                const prev = path[i-1], curr = path[i];
-                if(curr.r > prev.r) { boardData[curr.r][curr.c].exits.push(0); boardData[prev.r][prev.c].exits.push(2); }
-                else { boardData[curr.r][curr.c].exits.push(3); boardData[prev.r][prev.c].exits.push(1); }
-            }
+        for(let i=0; i<path.length-1; i++) {
+            const curr = path[i], next = path[i+1];
+            if(next.r > curr.r) { grid[curr.r][curr.c].exits.push(2); grid[next.r][next.c].exits.push(0); }
+            else { grid[curr.r][curr.c].exits.push(1); grid[next.r][next.c].exits.push(3); }
         }
 
-        for (let r = 0; r < size; r++) {
-            for (let c = 0; c < size; c++) {
+        // 3. 填充所有方塊
+        for(let r=0; r<size; r++) {
+            for(let c=0; c<size; c++) {
                 const idx = r * size + c;
-                let data = boardData[r][c];
-                if(data.exits.length === 0) data.exits = [0,1,2,3].sort(() => .5 - Math.random()).slice(0, 2);
-                if(currentLvl > 0 && Math.random() > 0.75) {
-                    let dDir = [0,1,2,3].find(d => !data.exits.includes(d));
-                    if(dDir !== undefined) data.isDead.push(dDir);
+                let data = grid[r][c];
+                
+                // 非路徑方塊：給予極具誤導性的 L 或 I 型
+                if(data.exits.length === 0) {
+                    const types = [[0,2], [1,3], [0,1], [1,2], [2,3], [3,0]];
+                    data.exits = types[Math.floor(Math.random()*types.length)];
                 }
 
                 const tileWrap = document.createElement('div');
                 tileWrap.className = 'tile';
-                let isTileLocked = (lockCount > 0 && idx !== 0 && idx !== (size*size-1) && Math.random() > 0.6);
-                if(isTileLocked) { tileWrap.classList.add('locked'); lockCount--; }
+                
+                // 增加鎖定難度：路徑上的方塊也有機率被鎖定
+                let isFixed = (lockCount > 0 && idx !== 0 && Math.random() > 0.6);
+                if(isFixed) { tileWrap.classList.add('locked'); lockCount--; }
 
-                let rotation = isTileLocked ? 0 : Math.floor(Math.random() * 4);
+                let rot = isFixed ? 0 : Math.floor(Math.random() * 4);
                 const tileObj = {
-                    element: tileWrap, baseExits: [...new Set(data.exits)], deadExits: data.isDead,
-                    currentRotation: rotation, isLocked: isTileLocked,
+                    element: tileWrap,
+                    baseExits: data.exits,
+                    currentRotation: rot,
+                    isLocked: isFixed,
                     getActualExits: function() { return this.baseExits.map(ex => (ex + this.currentRotation) % 4); }
                 };
 
-                tileObj.baseExits.forEach(dir => {
-                    const w = document.createElement('div'); w.className = 'wire ' + ['w-up', 'w-right', 'w-down', 'w-left'][dir];
-                    tileWrap.appendChild(w);
-                });
-                tileObj.deadExits.forEach(dir => {
-                    const w = document.createElement('div'); w.className = 'wire dead ' + ['w-up', 'w-right', 'w-down', 'w-left'][dir];
+                tileObj.baseExits.forEach(d => {
+                    const w = document.createElement('div');
+                    w.className = 'wire ' + ['w-up', 'w-right', 'w-down', 'w-left'][d];
                     tileWrap.appendChild(w);
                 });
 
-                tileWrap.style.transform = `rotate(${rotation * 90}deg)`;
-                tileWrap.onclick = () => { if(isLocked || tileObj.isLocked) return; tileObj.currentRotation = (tileObj.currentRotation + 1) % 4; tileWrap.style.transform = `rotate(${tileObj.currentRotation * 90}deg)`; checkCircuit(); };
+                tileWrap.style.transform = `rotate(${rot * 90}deg)`;
+                tileWrap.onclick = () => {
+                    if(isLocked || tileObj.isLocked) return;
+                    tileObj.currentRotation = (tileObj.currentRotation + 1) % 4;
+                    tileWrap.style.transform = `rotate(${tileObj.currentRotation * 90}deg)`;
+                    checkCircuit();
+                };
                 boardEl.appendChild(tileWrap);
                 tiles.push(tileObj);
             }
@@ -231,24 +227,23 @@ HTML
             if(powered.has(idx)) continue;
             powered.add(idx);
             tiles[idx].element.classList.add('powered');
-            const r = Math.floor(idx/size), c = idx%size, exits = tiles[idx].getActualExits();
-            const neighbors = [{d:0,nr:r-1,nc:c,o:2},{d:1,nr:r,nc:c+1,o:3},{d:2,nr:r+1,nc:c,o:0},{d:3,nr:r,nc:c-1,o:1}];
-            neighbors.forEach(nb => {
-                if(exits.includes(nb.d) && nb.nr>=0 && nb.nr<size && nb.nc>=0 && nb.nc<size) {
-                    const nIdx = nb.nr*size + nb.nc;
-                    if(tiles[nIdx].getActualExits().includes(nb.o)) queue.push(nIdx);
+            const r = Math.floor(idx/size), c = idx%size;
+            const exits = tiles[idx].getActualExits();
+            const nbs = [{d:0,nr:r-1,nc:c,o:2},{d:1,nr:r,nc:c+1,o:3},{d:2,nr:r+1,nc:c,o:0},{d:3,nr:r,nc:c-1,o:1}];
+            nbs.forEach(n => {
+                if(exits.includes(n.d) && n.nr>=0 && n.nr<size && n.nc>=0 && n.nc<size) {
+                    const nIdx = n.nr*size + n.nc;
+                    if(tiles[nIdx].getActualExits().includes(n.o)) queue.push(nIdx);
                 }
             });
         }
 
-        const lastIdx = tiles.length - 1;
-        if(powered.has(lastIdx) && tiles[lastIdx].getActualExits().includes(1)) {
-            isLocked = true;
-            clearInterval(timerId);
+        if(powered.has(tiles.length-1) && tiles[tiles.length-1].getActualExits().includes(1)) {
+            isLocked = true; clearInterval(timerId);
             setTimeout(() => {
                 if(currentLvl < levels.length - 1) showOverlay("ALIVE", "NEXT LEVEL");
                 else showOverlay("Congratulations, stranger! Please claim your reward.", "");
-            }, 600);
+            }, 500);
         }
     }
 
@@ -269,31 +264,16 @@ HTML
         const overlay = document.getElementById('overlay');
         const txt = document.getElementById('status-text');
         const btn = document.getElementById('action-btn');
-        
         txt.innerText = msg;
         btn.innerText = btnTxt;
-        
-        // Final Reward State
-        if (msg.includes("Congratulations")) {
-            txt.className = "stranger-text";
-            btn.classList.add('hidden'); // 隱藏按鈕，無法回到第一關
-        } else {
-            txt.className = (msg === "ALIVE") ? "alive-text" : "dead-text";
-            btn.classList.remove('hidden');
-        }
-        
+        if(msg.includes("Congratulations")) { txt.className = "stranger-text"; btn.classList.add("hidden"); }
+        else { txt.className = (msg === "ALIVE") ? "alive-text" : "dead-text"; btn.classList.remove("hidden"); }
         overlay.style.display = 'flex';
     }
 
-    function handleBtnClick() {
-        const btnTxt = document.getElementById('action-btn').innerText;
-        if(btnTxt === "NEXT LEVEL") currentLvl++;
-        else currentLvl = 0;
-        startGame();
-    }
+    function handleBtnClick() { currentLvl = (document.getElementById('action-btn').innerText === "NEXT LEVEL") ? currentLvl+1 : 0; startGame(); }
 
     startGame();
 </script>
 </body>
 </html>
-
