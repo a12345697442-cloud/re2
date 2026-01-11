@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RE2 CIRCUIT - HARDCORE STRANGER</title>
+    <title>RE2 CIRCUIT - ELITE CHALLENGE</title>
     <style>
         @font-face {
             font-family: 'RE_Font';
@@ -18,8 +18,7 @@
         }
 
         body { 
-            background-color: var(--bg-color); 
-            color: #ccc; 
+            background-color: var(--bg-color); color: #ccc; 
             font-family: 'RE_Font', 'Courier New', sans-serif; 
             display: flex; flex-direction: column; align-items: center; 
             margin: 0; height: 100vh; justify-content: center;
@@ -33,77 +32,51 @@
             background: rgba(20, 20, 20, 0.9); padding: 10px 30px; border: 1px solid #444;
         }
 
-        .timer { color: #f00; }
-        .timer.warning { animation: flicker 0.2s infinite; }
+        .timer { color: #f00; font-weight: bold; }
+        #game-container { position: relative; padding: 60px; background: #111; border: 4px solid #333; box-shadow: 0 0 100px #000; }
+        #game-board { display: grid; gap: 5px; background: #000; padding: 5px; }
 
-        #game-container { 
-            position: relative; padding: 50px; background: #111; border: 4px solid #333;
-            box-shadow: 0 0 100px #000;
-        }
+        /* 雙輸入/輸出標籤 */
+        .port { position: absolute; font-size: 12px; color: #444; font-weight: bold; }
+        .in-p { color: var(--pwr-color); left: 10px; }
+        .out-p { right: 10px; }
+        
+        /* 定位調整 */
+        .p-top { top: 80px; }
+        .p-btm { bottom: 80px; }
 
-        #game-board { display: grid; gap: 4px; background: #000; padding: 4px; }
-
-        .port-label { position: absolute; font-size: 14px; color: #444; text-transform: uppercase; }
-        #start-label { left: 15px; top: 75px; color: var(--pwr-color); }
-        #end-label { right: 15px; bottom: 75px; }
-
-        .tile { 
-            width: 75px; height: 75px; background: #151515; 
-            cursor: pointer; position: relative; transition: transform 0.2s;
-        }
-        .tile:hover:not(.locked) { background: #222; }
-
-        .tile.locked { 
-            cursor: not-allowed; background: var(--locked-bg);
-            border: 1px solid #500;
-        }
-        .tile.locked::before {
-            content: 'FIXED'; position: absolute; font-size: 9px; color: #f00;
-            top: 2px; left: 2px; z-index: 10;
-        }
+        .tile { width: 75px; height: 75px; background: #151515; cursor: pointer; position: relative; transition: transform 0.2s; }
+        .tile.locked { cursor: not-allowed; background: var(--locked-bg); border: 1px solid #500; }
+        .tile.locked::before { content: 'FIXED'; position: absolute; font-size: 8px; color: #f00; top: 2px; left: 2px; z-index: 10; }
 
         .wire { position: absolute; background: #333; z-index: 1; transition: background 0.3s; }
-        .tile::after {
-            content: ''; position: absolute; width: 14px; height: 14px;
-            background: #333; left: 30.5px; top: 30.5px; border-radius: 2px; z-index: 2;
-        }
+        .tile::after { content: ''; position: absolute; width: 14px; height: 14px; background: #333; left: 30.5px; top: 30.5px; border-radius: 2px; z-index: 2; }
 
         .w-up { width: 8px; height: 38px; left: 33.5px; top: 0; }
         .w-right { width: 38px; height: 8px; left: 37.5px; top: 33.5px; }
         .w-down { width: 8px; height: 38px; left: 33.5px; top: 37.5px; }
         .w-left { width: 38px; height: 8px; left: 0; top: 33.5px; }
 
-        .powered .wire, .powered::after { 
-            background: var(--pwr-color) !important; 
-            box-shadow: 0 0 15px var(--pwr-color); 
-        }
+        .powered .wire, .powered::after { background: var(--pwr-color) !important; box-shadow: 0 0 15px var(--pwr-color); }
 
-        .overlay { 
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-            background: rgba(0,0,0,0.98); display: none; 
-            flex-direction: column; justify-content: center; align-items: center; z-index: 100; 
-            text-align: center;
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.98); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 100; text-align: center; }
+        #status-text { font-size: 4em; margin-bottom: 20px; font-family: 'RE_Font', serif; letter-spacing: 2px; }
+        .stranger-text { 
+            color: #f1c40f; font-size: 2.8em !important; 
+            line-height: 1.8; letter-spacing: 8px !important; 
+            text-shadow: 0 0 20px rgba(241, 196, 15, 0.6); 
         }
-        
-        #status-text { font-size: 4em; margin-bottom: 20px; font-family: 'RE_Font', serif; }
         .dead-text { color: #f00; text-shadow: 0 0 20px #f00; }
         .alive-text { color: #0f0; text-shadow: 0 0 20px #0f0; }
-        .stranger-text { color: #f1c40f; font-size: 2.5em !important; line-height: 1.5; }
 
-        #action-btn { 
-            background: transparent; color: #fff; border: 1px solid #666; 
-            padding: 15px 50px; cursor: pointer; font-size: 1.5em; 
-            font-family: 'RE_Font', sans-serif;
-        }
-        #action-btn:hover { background: #800; border-color: #f00; }
+        button { background: transparent; color: #fff; border: 1px solid #666; padding: 15px 50px; cursor: pointer; font-size: 1.5em; font-family: 'RE_Font', sans-serif; }
+        button:hover { background: #800; border-color: #f00; }
         .hidden { display: none; }
-
-        @keyframes flicker { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
     </style>
 </head>
 <body>
 
-    <h2>CIRCUIT CONTROL HARDCORE</h2>
+    <h2>CIRCUIT CONTROL</h2>
     
     <div id="info-panel">
         <div>LVL: <span id="lvl-display">1</span></div>
@@ -111,88 +84,66 @@
     </div>
 
     <div id="game-container">
-        <div id="start-label" class="port-label">IN</div>
+        <div class="port in-p p-top">IN 1</div>
+        <div id="in2-label" class="port in-p p-btm hidden">IN 2</div>
+        
         <div id="game-board"></div>
-        <div id="end-label" class="port-label">OUT</div>
+        
+        <div class="port out-p p-top">OUT 1</div>
+        <div id="out2-label" class="port out-p p-btm hidden">OUT 2</div>
     </div>
 
     <div id="overlay" class="overlay">
-        <h1 id="status-text">YOU ARE DEAD</h1>
+        <h1 id="status-text"></h1>
         <button id="action-btn" onclick="handleBtnClick()">RETRY</button>
     </div>
 
 <script>
-    const levels = [{size:3, lock:0}, {size:4, lock:3}, {size:5, lock:6}];
-    let currentLvl = 0;
-    let timeLeft = 60;
-    let timerId = null;
-    let tiles = [];
-    let isLocked = false;
+    const levels = [
+        {size: 3, dual: false, locks: 0},
+        {size: 4, dual: true, locks: 2},
+        {size: 5, dual: true, locks: 5}
+    ];
+    let currentLvl = 0, timeLeft = 60, timerId = null, tiles = [], isLocked = false;
 
     function startGame() {
         isLocked = false;
         document.getElementById('overlay').style.display = 'none';
-        const config = levels[currentLvl];
-        timeLeft = 60;
+        const cfg = levels[currentLvl];
         document.getElementById('lvl-display').innerText = currentLvl + 1;
-        generateEvilBoard(config.size, config.lock);
+        document.getElementById('in2-label').classList.toggle('hidden', !cfg.dual);
+        document.getElementById('out2-label').classList.toggle('hidden', !cfg.dual);
+        generateLevel(cfg);
         startTimer();
     }
 
-    function generateEvilBoard(size, lockCount) {
+    function generateLevel(cfg) {
         const boardEl = document.getElementById('game-board');
         boardEl.innerHTML = '';
-        boardEl.style.gridTemplateColumns = `repeat(${size}, 75px)`;
+        boardEl.style.gridTemplateColumns = `repeat(${cfg.size}, 75px)`;
         tiles = [];
 
-        // 1. 生成唯一正確路徑
-        let solution = new Set();
-        let path = [];
-        let r = 0, c = 0;
-        path.push({r, c});
-        while(r < size-1 || c < size-1) {
-            if(r < size-1 && (Math.random() > 0.6 || c === size-1)) r++;
-            else c++;
-            path.push({r, c});
-            solution.add(`${r},${c}`);
-        }
+        const gridData = Array.from({length: cfg.size}, () => Array.from({length: cfg.size}, () => ({exits:[]})));
+        
+        // 生成路徑 1 (Top)
+        createPath(gridData, 0, 0, 0, cfg.size-1, 3, 1, cfg.size);
+        // 生成路徑 2 (Bottom)
+        if(cfg.dual) createPath(gridData, cfg.size-1, 0, cfg.size-1, cfg.size-1, 3, 1, cfg.size);
 
-        // 2. 建立資料結構
-        const grid = Array.from({length: size}, () => Array.from({length: size}, () => ({exits:[]})));
-        grid[0][0].exits.push(3); // 起點輸入
-        grid[size-1][size-1].exits.push(1); // 終點輸出
-
-        for(let i=0; i<path.length-1; i++) {
-            const curr = path[i], next = path[i+1];
-            if(next.r > curr.r) { grid[curr.r][curr.c].exits.push(2); grid[next.r][next.c].exits.push(0); }
-            else { grid[curr.r][curr.c].exits.push(1); grid[next.r][next.c].exits.push(3); }
-        }
-
-        // 3. 填充所有方塊
-        for(let r=0; r<size; r++) {
-            for(let c=0; c<size; c++) {
-                const idx = r * size + c;
-                let data = grid[r][c];
+        for(let r=0; r<cfg.size; r++){
+            for(let c=0; c<cfg.size; c++){
+                let data = gridData[r][c];
+                if(data.exits.length === 0) data.exits = [[0,1],[1,2],[2,3],[3,0],[0,2],[1,3]][Math.floor(Math.random()*6)];
                 
-                // 非路徑方塊：給予極具誤導性的 L 或 I 型
-                if(data.exits.length === 0) {
-                    const types = [[0,2], [1,3], [0,1], [1,2], [2,3], [3,0]];
-                    data.exits = types[Math.floor(Math.random()*types.length)];
-                }
-
                 const tileWrap = document.createElement('div');
                 tileWrap.className = 'tile';
-                
-                // 增加鎖定難度：路徑上的方塊也有機率被鎖定
-                let isFixed = (lockCount > 0 && idx !== 0 && Math.random() > 0.6);
-                if(isFixed) { tileWrap.classList.add('locked'); lockCount--; }
+                let isFixed = (cfg.locks > 0 && Math.random() > 0.7 && (r+c > 0));
+                if(isFixed) { tileWrap.classList.add('locked'); cfg.locks--; }
 
-                let rot = isFixed ? 0 : Math.floor(Math.random() * 4);
+                let rot = isFixed ? 0 : Math.floor(Math.random()*4);
                 const tileObj = {
-                    element: tileWrap,
-                    baseExits: data.exits,
-                    currentRotation: rot,
-                    isLocked: isFixed,
+                    baseExits: [...new Set(data.exits)],
+                    currentRotation: rot, isLocked: isFixed,
                     getActualExits: function() { return this.baseExits.map(ex => (ex + this.currentRotation) % 4); }
                 };
 
@@ -203,77 +154,97 @@
                 });
 
                 tileWrap.style.transform = `rotate(${rot * 90}deg)`;
-                tileWrap.onclick = () => {
-                    if(isLocked || tileObj.isLocked) return;
-                    tileObj.currentRotation = (tileObj.currentRotation + 1) % 4;
-                    tileWrap.style.transform = `rotate(${tileObj.currentRotation * 90}deg)`;
-                    checkCircuit();
-                };
+                tileWrap.onclick = () => { if(!isLocked && !tileObj.isLocked) { tileObj.currentRotation = (tileObj.currentRotation + 1) % 4; tileWrap.style.transform = `rotate(${tileObj.currentRotation * 90}deg)`; checkWin(); } };
                 boardEl.appendChild(tileWrap);
                 tiles.push(tileObj);
             }
         }
-        checkCircuit();
+        checkWin();
     }
 
-    function checkCircuit() {
-        const size = levels[currentLvl].size;
-        tiles.forEach(t => t.element.classList.remove('powered'));
-        const powered = new Set(), queue = [0];
-        if(!tiles[0].getActualExits().includes(3)) return;
+    function createPath(grid, sr, sc, er, ec, startDir, endDir, size) {
+        let r = sr, c = sc;
+        grid[r][c].exits.push(startDir);
+        while(r !== er || c !== ec) {
+            let lastR = r, lastC = c;
+            if(r < er) r++; else if (r > er) r--; else if (c < ec) c++;
+            if(r > lastR) { grid[lastR][lastC].exits.push(2); grid[r][c].exits.push(0); }
+            else if(r < lastR) { grid[lastR][lastC].exits.push(0); grid[r][c].exits.push(2); }
+            else if(c > lastC) { grid[lastR][lastC].exits.push(1); grid[r][c].exits.push(3); }
+        }
+        grid[er][ec].exits.push(endDir);
+    }
 
+    function checkWin() {
+        const size = levels[currentLvl].size;
+        tiles.forEach(t => t.element?.classList.remove('powered')); // Optional: for visual feedback
+        
+        const p1 = trace(0, 3, size);
+        let p2 = currentLvl > 0 ? trace((size-1)*size, 3, size) : new Set(["dummy"]);
+
+        // 視覺化通電
+        tiles.forEach((t, i) => { if(p1.has(i) || (currentLvl > 0 && p2.has(i))) t.element.classList.add('powered'); else t.element.classList.remove('powered'); });
+
+        const win1 = p1.has(size-1) && tiles[size-1].getActualExits().includes(1);
+        const win2 = !levels[currentLvl].dual || (p2.has(size*size-1) && tiles[size*size-1].getActualExits().includes(1));
+
+        if(win1 && win2) {
+            isLocked = true; clearInterval(timerId);
+            setTimeout(() => {
+                if(currentLvl < levels.length - 1) showOverlay("ALIVE", "NEXT LEVEL");
+                else showOverlay("Congratulations, stranger!\nPlease claim your reward.", "");
+            }, 600);
+        }
+    }
+
+    function trace(startIdx, startEntryDir, size) {
+        const powered = new Set(), queue = [];
+        if(tiles[startIdx].getActualExits().includes(startEntryDir)) queue.push(startIdx);
         while(queue.length > 0) {
             const idx = queue.shift();
             if(powered.has(idx)) continue;
             powered.add(idx);
-            tiles[idx].element.classList.add('powered');
-            const r = Math.floor(idx/size), c = idx%size;
-            const exits = tiles[idx].getActualExits();
+            const r = Math.floor(idx/size), c = idx%size, exits = tiles[idx].getActualExits();
             const nbs = [{d:0,nr:r-1,nc:c,o:2},{d:1,nr:r,nc:c+1,o:3},{d:2,nr:r+1,nc:c,o:0},{d:3,nr:r,nc:c-1,o:1}];
             nbs.forEach(n => {
                 if(exits.includes(n.d) && n.nr>=0 && n.nr<size && n.nc>=0 && n.nc<size) {
-                    const nIdx = n.nr*size + n.nc;
+                    const nIdx = n.nr*size+n.nc;
                     if(tiles[nIdx].getActualExits().includes(n.o)) queue.push(nIdx);
                 }
             });
         }
-
-        if(powered.has(tiles.length-1) && tiles[tiles.length-1].getActualExits().includes(1)) {
-            isLocked = true; clearInterval(timerId);
-            setTimeout(() => {
-                if(currentLvl < levels.length - 1) showOverlay("ALIVE", "NEXT LEVEL");
-                else showOverlay("Congratulations, stranger! Please claim your reward.", "");
-            }, 500);
-        }
+        return powered;
     }
 
     function startTimer() {
         clearInterval(timerId);
         timerId = setInterval(() => {
-            if(isLocked) return;
-            timeLeft--;
-            document.getElementById('time-display').innerText = timeLeft;
-            if(timeLeft <= 10) document.querySelector('.timer').classList.add('warning');
-            if(timeLeft <= 0) endGame();
+            if(!isLocked) { timeLeft--; document.getElementById('time-display').innerText = timeLeft; if(timeLeft <= 0) endGame(); }
         }, 1000);
     }
 
     function endGame() { isLocked = true; clearInterval(timerId); showOverlay("YOU ARE DEAD", "RETRY"); }
 
     function showOverlay(msg, btnTxt) {
-        const overlay = document.getElementById('overlay');
-        const txt = document.getElementById('status-text');
-        const btn = document.getElementById('action-btn');
-        txt.innerText = msg;
-        btn.innerText = btnTxt;
-        if(msg.includes("Congratulations")) { txt.className = "stranger-text"; btn.classList.add("hidden"); }
-        else { txt.className = (msg === "ALIVE") ? "alive-text" : "dead-text"; btn.classList.remove("hidden"); }
-        overlay.style.display = 'flex';
+        const o = document.getElementById('overlay'), t = document.getElementById('status-text'), b = document.getElementById('action-btn');
+        t.innerText = msg; b.innerText = btnTxt;
+        if(msg.includes("Congratulations")) { t.className = "stranger-text"; b.classList.add("hidden"); }
+        else { t.className = (msg === "ALIVE") ? "alive-text" : "dead-text"; b.classList.remove("hidden"); }
+        o.style.display = 'flex';
     }
 
     function handleBtnClick() { currentLvl = (document.getElementById('action-btn').innerText === "NEXT LEVEL") ? currentLvl+1 : 0; startGame(); }
 
+    // 初始化 Tiles element 引用
+    function checkCircuit() {} // Placeholder
     startGame();
+    // 修正：將 tileWrap 存入 tiles 物件以便後續操作
+    function updateTilesRef() {
+        const els = document.getElementsByClassName('tile');
+        for(let i=0; i<els.length; i++) tiles[i].element = els[i];
+    }
+    const observer = new MutationObserver(() => { updateTilesRef(); checkWin(); });
+    observer.observe(document.getElementById('game-board'), { childList: true });
 </script>
 </body>
 </html>
