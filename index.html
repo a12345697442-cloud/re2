@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>PCB LOGIC TERMINAL: ALL STAGES</title>
+    <title>PCB PRECISION REPAIR</title>
     <style>
         :root { --green: #3cf08d; --bg: #050806; --wire: #1a251e; }
         body { background: var(--bg); color: var(--green); font-family: monospace; display: flex; flex-direction: column; align-items: center; margin: 0; }
@@ -12,15 +12,15 @@
         .socket { position: absolute; width: 44px; height: 44px; background: #111; border: 2px dashed #444; z-index: 10; cursor: pointer; display: flex; justify-content: center; align-items: center; }
         .socket.filled { border: 2px solid #555; }
         .socket svg { width: 36px; height: 36px; stroke: #333; stroke-width: 5; fill: none; }
-        .socket.powered svg { stroke: var(--green); filter: drop-shadow(0 0 5px var(--green)); }
+        .socket.powered svg { stroke: var(--green); filter: drop-shadow(0 0 10px var(--green)); }
         .cell { position: absolute; width: 14px; height: 14px; border: 2px solid #333; border-radius: 50%; z-index: 50; background: #000; }
         .cell.lit { background: var(--green); border-color: #fff; box-shadow: 0 0 15px var(--green); }
         #inv { width: 360px; margin-top: 10px; display: flex; gap: 8px; background: #111; padding: 10px; box-sizing: border-box; }
         .item { width: 60px; height: 55px; border: 2px solid #444; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; }
         .item.active { border-color: var(--green); background: #0a150f; }
         .item svg { width: 22px; height: 22px; stroke: var(--green); stroke-width: 3; fill: none; }
-        .count { font-size: 10px; color: #888; margin-top: 2px; }
-        button { background: #000; color: var(--green); border: 1px solid var(--green); padding: 5px 10px; cursor: pointer; font-family: monospace; }
+        .count { font-size: 10px; color: #888; }
+        button { background: #000; color: var(--green); border: 1px solid var(--green); padding: 5px; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -32,7 +32,7 @@
 
 <div id="board">
     <canvas id="cvs" width="360" height="380"></canvas>
-    <div id="tag" style="position:absolute; font-size:10px; color:var(--green); font-weight:bold;">[POWER IN]</div>
+    <div id="tag" style="position:absolute; font-size:10px; font-weight:bold;">[POWER IN]</div>
 </div>
 
 <div id="inv">
@@ -49,33 +49,33 @@ let sel = null, curLv = 1, inventory = {}, sockets = [], cells = [], wires = [];
 // 端口：0上, 1右, 2下, 3左
 const LOGIC = {
     'L': (r) => [[0,1], [1,2], [2,3], [3,0]][r/90],
-    'T': (r) => [[1,2,3], [2,3,0], [3,0,1], [0,1,2]][r/90], // 0:腳向下通左下右, 90:腳向左通上左下...
+    'T': (r) => [[3,2,1], [0,2,1], [1,0,3], [2,0,3]][r/90], // 修正後的 T 字方位
     'X': (r) => [0,1,2,3]
 };
 
 const levels = {
-    1: { name: "STAGE 1: VERTICAL", goal: 3, inv: {L:2, T:1, X:1}, tag: {x:145, y:-10},
+    1: { name: "STAGE 1: TOP DOWN", goal: 3, inv: {L:2, T:1, X:1}, tag: {x:145, y:-10},
         s: [{x:180,y:80},{x:80,y:180},{x:280,y:180}],
         c: [{x:30,y:180},{x:180,y:300},{x:330,y:180}],
         w: [
-            {f:[180,0], t:[180,80], power:true, pT:0, sid:0}, // 頂部入 s0(上)
-            {f:[180,80], t:[80,80], sid:0, pF:3}, {f:[80,80], t:[80,180], sid:1, pT:0}, // s0(左) -> s1(上)
-            {f:[180,80], t:[280,80], sid:0, pF:1}, {f:[280,80], t:[280,180], sid:2, pT:0}, // s0(右) -> s2(上)
-            {f:[180,80], t:[180,300], sid:0, pF:2}, // s0(下) -> 電源
-            {f:[80,180], t:[30,180], sid:1, pF:3}, // s1(左) -> 電源
-            {f:[280,180], t:[330,180], sid:2, pF:1} // s2(右) -> 電源
+            {f:[180,0], t:[180,80], power:true, pT:0, sid:0}, // 電力從上入 s0
+            {f:[180,80], t:[80,80], sid:0, pF:3}, {f:[80,80], t:[80,180], sid:1, pT:0}, // s0左出 -> s1上進
+            {f:[180,80], t:[280,80], sid:0, pF:1}, {f:[280,80], t:[280,180], sid:2, pT:0}, // s0右出 -> s2上進
+            {f:[180,80], t:[180,300], sid:0, pF:2}, // s0下出
+            {f:[80,180], t:[30,180], sid:1, pF:3}, // s1左出
+            {f:[280,180], t:[330,180], sid:2, pF:1} // s2右出
         ]
     },
-    2: { name: "STAGE 2: LATERAL", goal: 3, inv: {L:4, T:1, X:1}, tag: {x:-10, y:195},
+    2: { name: "STAGE 2: SIDE IN", goal: 3, inv: {L:4, T:1, X:1}, tag: {x:-10, y:195},
         s: [{x:80,y:200},{x:180,y:200},{x:180,y:100}],
         c: [{x:180,y:300},{x:300,y:100},{x:300,y:200}],
         w: [
-            {f:[0,200], t:[80,200], power:true, pT:3, sid:0}, // 左側入 s0(左)
-            {f:[80,200], t:[180,200], sid:0, pF:1, pT:3, sidNext:1}, // s0(右) -> s1(左)
-            {f:[180,200], t:[180,300], sid:1, pF:2}, // s1(下) -> 電源
-            {f:[180,200], t:[180,100], sid:1, pF:0, pT:2, sidNext:2}, // s1(上) -> s2(下)
-            {f:[180,100], t:[300,100], sid:2, pF:1}, // s2(右) -> 電源
-            {f:[180,200], t:[300,200], sid:1, pF:1}  // s1(右) -> 電源
+            {f:[0,200], t:[80,200], power:true, pT:3, sid:0}, // 左側入 s0
+            {f:[80,200], t:[180,200], sid:0, pF:1, pT:3}, // s0右出 -> s1左進
+            {f:[180,200], t:[180,300], sid:1, pF:2}, // s1下出
+            {f:[180,200], t:[180,100], sid:1, pF:0, pT:2}, // s1上出 -> s2下進
+            {f:[180,100], t:[300,100], sid:2, pF:1}, // s2右出
+            {f:[180,200], t:[300,200], sid:1, pF:1}  // s1右出
         ]
     }
 };
@@ -109,11 +109,10 @@ function update(){
             if(w.p) return;
             let hasIn = w.power || wires.some(sw=>sw.p && sw.t[0]===w.f[0] && sw.t[1]===w.f[1]);
             if(hasIn){
-                if(w.pT!==undefined){ // 進入組件
-                    const s = sockets[w.sid];
+                const s = sockets[w.sid];
+                if(w.pT!==undefined){ // 進入組件的門
                     if(s.type && LOGIC[s.type](s.rot).includes(w.pT)){ w.p=true; powS.add(s.id); changed=true; }
-                } else if(w.pF!==undefined){ // 從組件出發
-                    const s = sockets[w.sid];
+                } else if(w.pF!==undefined){ // 出組件的門
                     if(s.type && powS.has(s.id) && LOGIC[s.type](s.rot).includes(w.pF)){ w.p=true; changed=true; }
                 } else { w.p=true; changed=true; } // 普通導線
             }
@@ -127,13 +126,13 @@ function update(){
     });
     let lit = 0;
     cells.forEach(c=>{
-        const on = wires.some(w=>w.p && w.t[0]===c.x && w.t[1]===c.y);
+        const on = wires.some(w=>w.p && (Math.abs(w.t[0]-c.x)<5 && Math.abs(w.t[1]-c.y)<5));
         c.el.classList.toggle('lit', on); if(on) lit++;
     });
     document.getElementById('stat').innerText=`NODES: ${lit} / ${levels[curLv].goal}`;
     document.getElementById('cL').innerText=`L:${inventory.L}`; document.getElementById('cT').innerText=`T:${inventory.T}`; document.getElementById('cX').innerText=`X:${inventory.X}`;
     draw();
-    if(lit >= levels[curLv].goal && curLv < 2) setTimeout(()=>{ if(confirm("STAGE CLEAR! NEXT?")) initStage(2); }, 300);
+    if(lit >= levels[curLv].goal && curLv < 2) setTimeout(()=>{ if(confirm("STAGE 1 CLEAR! NEXT?")) initStage(2); }, 300);
 }
 
 function getSVG(t){
