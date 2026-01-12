@@ -1,218 +1,199 @@
+
+我完全明白你的挫敗感了，非常抱歉！我之前確實陷入了過度簡化的邏輯，沒有真正落實你說的「T 型按鈕的斷路物理特性」以及「電源分布在各圈」的關鍵。
+
+這次我們徹底推倒重來，按照你對 《惡靈古堡 4》原始遊戲機制 的精確描述來製作：
+
+核心物理邏輯：
+T 型按鈕的真實用處：它有三個出口。如果 T 的三個開口沒有對準電力的來源與去向，電就會在這裡徹底中斷。例如電力從上而來，你把 T 轉向左右，電力就無法傳到下方（因為 T 的底部是密封的）。
+
+每圈一個電源：最外圈 (L1) 一個、中圈 (L2) 一個、內圈 (L3) 一個、中心 (L4) 一個。
+
+串聯式解謎：電力必須從最外圈開始，透過按鈕轉向，一步步引導到內層。如果中間有一個 T 轉錯了，後面的所有電源都會斷電。
+
+4/4 的意義：這代表遊戲的終極目標——你必須透過轉動按鈕，讓一條電力線路分支，同時觸及四個位於不同層級的電源點。
+
+HTML
+
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>RE4 CORE CALIBRATOR</title>
+    <title>RE4 CIRCUIT OVERRIDE FINAL</title>
     <style>
-        :root {
-            --re-green: #3cf08d;
-            --re-dark: #0a1a10;
-            --re-line: #1a3020;
-            --bg: #050605;
-        }
+        :root { --green: #3cf08d; --dim: #1a2a20; --bg: #050806; }
+        body { background: var(--bg); color: var(--green); font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; margin: 0; overflow: hidden; }
+        
+        #ui-panel { width: 340px; margin-top: 25px; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--dim); padding: 10px; }
+        .stat-box { font-size: 18px; font-weight: bold; letter-spacing: 2px; }
 
-        body {
-            background-color: var(--bg); color: var(--re-green);
-            font-family: 'Courier New', monospace;
-            display: flex; flex-direction: column; align-items: center;
-            margin: 0; height: 100vh; overflow: hidden;
-        }
-
-        /* 標題與電力條 */
-        .status-header { width: 340px; margin-top: 20px; border-bottom: 2px solid var(--re-line); padding-bottom: 10px; }
-        .power-meter { height: 4px; background: var(--re-line); margin-top: 8px; position: relative; }
-        .power-fill { height: 100%; background: var(--re-green); box-shadow: 0 0 10px var(--re-green); transition: width 0.5s; }
-
-        #game-area {
-            position: relative; width: 360px; height: 360px; margin-top: 30px;
-        }
-
+        #terminal { position: relative; width: 360px; height: 360px; margin-top: 20px; }
         canvas { position: absolute; top: 0; left: 0; z-index: 5; pointer-events: none; }
 
-        /* 工業組件按鈕 */
-        .knob {
-            position: absolute; width: 52px; height: 52px;
-            background: #111; border: 2px solid #333; border-radius: 6px;
+        /* 工業風厚重按鈕 */
+        .connector {
+            position: absolute; width: 50px; height: 50px;
+            background: #111; border: 2px solid #333; border-radius: 4px;
             z-index: 100; cursor: pointer; display: flex; justify-content: center; align-items: center;
-            transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-            -webkit-tap-highlight-color: transparent;
+            box-shadow: inset 0 0 10px #000;
         }
-        .knob svg { width: 38px; height: 38px; stroke: #444; stroke-width: 4; fill: none; transition: 0.3s; }
-        
-        /* 通電效果 */
-        .knob.on { border-color: var(--re-green); box-shadow: 0 0 15px rgba(60, 240, 141, 0.2); }
-        .knob.on svg { stroke: var(--re-green); filter: drop-shadow(0 0 8px var(--re-green)); }
+        .connector svg { width: 36px; height: 36px; stroke: #444; stroke-width: 5; fill: none; pointer-events: none; }
+        .connector.powered { border-color: var(--green); box-shadow: 0 0 15px rgba(60,240,141,0.4); }
+        .connector.powered svg { stroke: var(--green); }
 
-        /* 電源電池 */
-        .cell {
-            position: absolute; width: 24px; height: 24px;
+        /* 分散在各圈的電源 */
+        .power-node {
+            position: absolute; width: 22px; height: 22px;
             border: 2px solid #222; background: #000; z-index: 50;
             display: flex; justify-content: center; align-items: center; font-size: 12px;
         }
-        .cell.active {
-            background: var(--re-green); border-color: #fff; color: #000;
-            box-shadow: 0 0 20px var(--re-green);
-        }
+        .power-node.lit { background: var(--green); color: #000; border-color: #fff; box-shadow: 0 0 20px var(--green); font-weight: bold; }
 
-        .label { font-size: 10px; color: #444; margin-top: 40px; text-transform: uppercase; letter-spacing: 2px; }
+        .desc { margin-top: 40px; color: #444; font-size: 11px; text-transform: uppercase; }
     </style>
 </head>
 <body>
 
-    <div class="status-header">
-        <div style="display:flex; justify-content:space-between;">
-            <span>CALIBRATION SYSTEM</span>
-            <span id="percent">0%</span>
-        </div>
-        <div class="power-meter"><div class="power-fill" id="bar" style="width: 0%"></div></div>
+    <div id="ui-panel">
+        <div style="font-size:12px;">CALIBRATION STATUS</div>
+        <div class="stat-box" id="counter">0 / 4</div>
     </div>
 
-    <div id="game-area">
+    <div id="terminal">
         <canvas id="circuit" width="360" height="360"></canvas>
     </div>
 
-    <div class="label">Input Signal Detected: Align All Converters</div>
+    <div class="desc">Link all nodes across layers to bypass security</div>
 
 <script>
-    const area = document.getElementById('game-area');
+window.onload = function() {
     const canvas = document.getElementById('circuit');
     const ctx = canvas.getContext('2d');
-
-    // 遊戲配置
-    const rings = [150, 90, 40]; // 三層正方形軌道
-    const nodes = [];
-    const cells = [
-        { x: 30,  y: 30,  ring: 0, lit: false }, // 左上電源
-        { x: 330, y: 30,  ring: 0, lit: false }, // 右上電源
-        { x: 330, y: 330, ring: 0, lit: false }, // 右下電源
-        { x: 180, y: 225, ring: 2, lit: false }  // 內圈底部電源
+    
+    // 定義 4 圈方形軌道 (由外到內)
+    const rings = [140, 100, 60, 25];
+    
+    // 按鈕配置：每個按鈕的 rot 決定了電力的去向 (0:上, 90:右, 180:下, 270:左)
+    const connectors = [
+        { x: 180, y: 40,  type: 'T', rot: 0, ring: 0 }, // 第1圈頂部按鈕 (決定電力是否進入第2圈)
+        { x: 280, y: 180, type: 'L', rot: 0, ring: 1 }, // 第2圈右側按鈕 (決定電力是否進入第3圈)
+        { x: 180, y: 240, type: 'T', rot: 0, ring: 2 }, // 第3圈底部按鈕 (決定電力是否進入第4圈)
+        { x: 155, y: 180, type: 'L', rot: 0, ring: 3 }  // 第4圈核心按鈕
     ];
 
-    // 按鈕配置：包含 L, T, 十
-    const configs = [
-        { x: 180, y: 30,  type: 'T', ring: 0 },     // 頂部入口：決定是否向左右分流
-        { x: 180, y: 180, type: 'CROSS', ring: 2 }, // 中心樞紐：四通八達，決定全域導通
-        { x: 330, y: 180, type: 'T', ring: 1 },     // 右側轉接：將外圈電力導向中心
-        { x: 90,  y: 90,  type: 'L', ring: 1 }      // 轉角：精確導向單一電源
+    // 分散在每一圈的電源點 (每圈一個)
+    const nodes = [
+        { x: 40,  y: 40,  ring: 0, lit: false }, // 第1圈角落
+        { x: 280, y: 80,  ring: 1, lit: false }, // 第2圈側面
+        { x: 120, y: 180, ring: 2, lit: false }, // 第3圈側面
+        { x: 180, y: 180, ring: 3, lit: false }  // 中心電源
     ];
 
     function init() {
-        configs.forEach(conf => {
-            const btn = document.createElement('div');
-            btn.className = 'knob';
-            btn.style.left = (conf.x - 26) + 'px';
-            btn.style.top = (conf.y - 26) + 'px';
+        connectors.forEach(c => {
+            const div = document.createElement('div');
+            div.className = 'connector';
+            div.style.left = (c.x - 25) + 'px';
+            div.style.top = (c.y - 25) + 'px';
+            c.rot = Math.floor(Math.random()*4)*90;
+            div.style.transform = `rotate(${c.rot}deg)`;
+            div.innerHTML = `<svg viewBox="0 0 40 40">${c.type === 'T' ? '<path d="M5 20 H35 M20 20 V5" />' : '<path d="M20 5 V20 H35" />'}</svg>`;
             
-            conf.rot = Math.floor(Math.random() * 4) * 90;
-            btn.style.transform = `rotate(${conf.rot}deg)`;
-            btn.innerHTML = `<svg viewBox="0 0 40 40">${getIcon(conf.type)}</svg>`;
-            
-            btn.onclick = () => {
-                conf.rot = (conf.rot + 90) % 360;
-                btn.style.transform = `rotate(${conf.rot}deg)`;
-                if(window.navigator.vibrate) window.navigator.vibrate(20);
+            div.onclick = () => {
+                c.rot = (c.rot + 90) % 360;
+                div.style.transform = `rotate(${c.rot}deg)`;
                 update();
             };
-            conf.el = btn;
-            nodes.push(conf);
-            area.appendChild(btn);
-        });
-
-        cells.forEach((c, i) => {
-            const div = document.createElement('div');
-            div.className = 'cell';
-            div.style.left = (c.x - 12) + 'px';
-            div.style.top = (c.y - 12) + 'px';
-            div.innerText = '⚡';
             c.el = div;
-            area.appendChild(div);
-        });
-
-        update();
-    }
-
-    function getIcon(type) {
-        if(type === 'L') return '<path d="M20 0 V20 H40" />';
-        if(type === 'T') return '<path d="M0 20 H40 M20 20 V0" />';
-        if(type === 'CROSS') return '<path d="M20 0 V40 M0 20 H40" />';
-    }
-
-    function update() {
-        // 核心邏輯：檢測「十字」與「T字」的導通組合
-        const topT = nodes[0];
-        const centerCross = nodes[1];
-
-        // 頂部T字：若向左右(0, 180)則外圈導通，若向下(90, 180, 270)則可入內圈
-        const powerToOuter = (topT.rot % 360 !== 90); 
-        const powerToInner = (topT.rot % 360 === 90 || topT.rot % 360 === 180 || topT.rot % 360 === 270);
-        
-        // 中心十字：只有它轉到特定位置，內圈電源才會亮
-        const centerActive = powerToInner && (centerCross.rot % 90 === 0); // 十字總是通的，但需前置電源
-
-        let activeCount = 0;
-        cells.forEach(c => {
-            let isLit = false;
-            if(c.ring === 0) isLit = powerToOuter;
-            if(c.ring === 2) isLit = centerActive;
-            
-            c.lit = isLit;
-            c.el.classList.toggle('active', isLit);
-            if(isLit) activeCount++;
+            document.getElementById('terminal').appendChild(div);
         });
 
         nodes.forEach(n => {
-            const nodeLit = (n.ring === 0) ? powerToOuter : (n.ring === 2 ? centerActive : powerToInner);
-            n.el.classList.toggle('on', nodeLit);
+            const div = document.createElement('div');
+            div.className = 'power-node';
+            div.style.left = (n.x - 11) + 'px';
+            div.style.top = (n.y - 11) + 'px';
+            div.innerHTML = '⚡';
+            n.el = div;
+            document.getElementById('terminal').appendChild(div);
+        });
+        update();
+    }
+
+    function update() {
+        // 嚴格物理邏輯：
+        // 第1圈 (L1) 始終通電
+        const L1_ON = true;
+        
+        // 第2圈 (L2) 只有當第1圈按鈕 (T型) 向下開口時才通電
+        // T型的初始狀態是 5,20-35,20 和 20,20-20,5。
+        // 當 rot=180度時，原本向上的支路會指向 180度(下)。
+        const L2_ON = L1_ON && (connectors[0].rot === 180);
+        
+        // 第3圈 (L3) 只有當第2圈按鈕 (L型) 向左開口時才通電
+        const L3_ON = L2_ON && (connectors[1].rot === 270);
+        
+        // 第4圈 (L4) 只有當第3圈按鈕 (T型) 向上開口時才通電
+        const L4_ON = L3_ON && (connectors[2].rot === 0);
+
+        let activeCount = 0;
+        const status = [L1_ON, L2_ON, L3_ON, L4_ON];
+
+        nodes.forEach((n, i) => {
+            n.lit = status[n.ring];
+            n.el.classList.toggle('lit', n.lit);
+            if(n.lit) activeCount++;
         });
 
-        const progress = Math.round((activeCount / cells.length) * 100);
-        document.getElementById('percent').innerText = progress + '%';
-        document.getElementById('bar').style.width = progress + '%';
+        connectors.forEach(c => {
+            c.el.classList.toggle('powered', status[c.ring]);
+        });
 
-        draw(powerToOuter, powerToInner, centerActive);
+        document.getElementById('counter').innerText = activeCount + ' / 4';
+        draw(status);
     }
 
-    function draw(outer, inner, center) {
+    function draw(status) {
         ctx.clearRect(0, 0, 360, 360);
         
-        // 背景虛線
-        ctx.setLineDash([5, 5]);
-        ctx.strokeStyle = '#1a3020';
-        ctx.lineWidth = 1;
-        rings.forEach(r => ctx.strokeRect(180-r, 180-r, r*2, r*2));
-        ctx.beginPath();
-        ctx.moveTo(180, 30); ctx.lineTo(180, 330);
-        ctx.moveTo(30, 180); ctx.lineTo(330, 180);
-        ctx.stroke();
+        // 繪製背景軌道
+        rings.forEach((r, i) => {
+            ctx.setLineDash([5, 5]);
+            ctx.strokeStyle = '#1a2a20';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(180-r, 180-r, r*2, r*2);
 
-        // 電力實線
+            // 通電時變為亮綠色實線
+            if(status[i]) {
+                ctx.setLineDash([]);
+                ctx.strokeStyle = '#3cf08d';
+                ctx.lineWidth = 3;
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = '#3cf08d';
+                ctx.strokeRect(180-r, 180-r, r*2, r*2);
+                ctx.shadowBlur = 0;
+            }
+        });
+
+        // 畫出層與層之間的連接線 (只有通電才亮)
         ctx.setLineDash([]);
-        if(outer) {
-            glowEffect();
-            ctx.strokeRect(180-rings[0], 180-rings[0], rings[0]*2, rings[0]*2);
-        }
-        if(inner) {
-            glowEffect();
-            ctx.beginPath();
-            ctx.moveTo(180, 30); ctx.lineTo(180, 180);
-            ctx.stroke();
-            ctx.strokeRect(180-rings[1], 180-rings[1], rings[1]*2, rings[1]*2);
-        }
-        if(center) {
-            glowEffect();
-            ctx.strokeRect(180-rings[2], 180-rings[2], rings[2]*2, rings[2]*2);
-        }
-    }
-
-    function glowEffect() {
-        ctx.strokeStyle = '#3cf08d';
-        ctx.lineWidth = 3;
-        ctx.shadowBlur = 12;
-        ctx.shadowColor = '#3cf08d';
+        const pathColor = (s) => s ? '#3cf08d' : '#1a2a20';
+        
+        // L1 -> L2
+        ctx.strokeStyle = pathColor(status[1]);
+        ctx.beginPath(); ctx.moveTo(180, 40); ctx.lineTo(180, 80); ctx.stroke();
+        
+        // L2 -> L3
+        ctx.strokeStyle = pathColor(status[2]);
+        ctx.beginPath(); ctx.moveTo(280, 180); ctx.lineTo(240, 180); ctx.stroke();
+        
+        // L3 -> L4
+        ctx.strokeStyle = pathColor(status[3]);
+        ctx.beginPath(); ctx.moveTo(180, 240); ctx.lineTo(180, 205); ctx.stroke();
     }
 
     init();
+};
 </script>
 </body>
 </html>
