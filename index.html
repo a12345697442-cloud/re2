@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>RE2 ROTARY - MOBILE OPTIMIZED</title>
+    <title>RE2 ROTARY - PERFECT ALIGN</title>
     <style>
         @font-face {
             font-family: 'RE_Font';
@@ -13,87 +13,104 @@
         :root { 
             --pwr-color: #f1c40f; 
             --bg-color: #050505;
-            --re-red: #ff0000;
+            --re-red: #8b0000;
         }
 
         body { 
             background-color: var(--bg-color); color: #ccc; 
             font-family: 'RE_Font', sans-serif; 
             display: flex; flex-direction: column; align-items: center; 
-            margin: 0; height: 100vh; justify-content: flex-start;
+            margin: 0; padding: 0; height: 100vh;
             background-image: radial-gradient(circle, #1a1a1a 0%, #000 100%);
             overflow: hidden; touch-action: manipulation;
         }
 
-        h2 { color: var(--re-red); text-transform: uppercase; letter-spacing: 5px; margin-top: 20px; font-size: 1.5em; }
+        .header { margin-top: 20px; text-align: center; }
+        h2 { color: #f00; letter-spacing: 5px; margin: 0; font-size: 1.5em; }
+        .timer { color: #f00; font-size: 1.2em; margin-top: 5px; }
 
         /* 拼圖顯示區 */
-        #puzzle-stage {
+        #puzzle-container {
             position: relative;
             width: 320px; height: 320px;
-            margin-top: 20px;
+            margin: 20px 0;
             display: flex; justify-content: center; align-items: center;
+            background: rgba(255,255,255,0.02);
+            border-radius: 50%;
         }
+
+        /* 頂部注入點指示 */
+        .target-indicator {
+            position: absolute; top: -15px; font-size: 24px; color: var(--pwr-color);
+            z-index: 50; text-shadow: 0 0 10px var(--pwr-color);
+            animation: blink 1s infinite;
+        }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
         .ring {
             position: absolute;
-            border: 4px solid #222;
+            border: 5px solid #222;
             border-radius: 50%;
-            transition: transform 0.3s ease-out;
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             box-sizing: border-box;
         }
 
+        /* 電刷視覺 */
         .brush {
             position: absolute;
-            background: #444;
-            width: 10px; height: 20px;
-            top: -12px; left: 50%;
+            background: #333;
+            width: 12px; height: 24px;
+            top: -14px; left: 50%;
             transform: translateX(-50%);
             border-radius: 2px;
+            transition: all 0.3s;
         }
 
-        /* 通電發光 */
-        .ring.powered { border-color: #444; box-shadow: 0 0 10px rgba(241, 196, 15, 0.1); }
-        .ring.powered .brush.lit {
+        /* 通電發光效果 */
+        .ring.powered { border-color: #444; }
+        .ring.powered .brush.active {
             background: var(--pwr-color) !important;
-            box-shadow: 0 0 15px var(--pwr-color);
+            box-shadow: 0 0 20px var(--pwr-color), 0 0 40px var(--pwr-color);
         }
 
         #core {
-            width: 50px; height: 50px; background: #000;
-            border: 2px solid #333; border-radius: 50%;
+            width: 60px; height: 60px; background: #000;
+            border: 3px solid #333; border-radius: 50%;
             z-index: 10; display: flex; justify-content: center; align-items: center;
-            font-size: 10px; color: #444;
+            font-size: 12px; color: #444; text-align: center;
         }
-        #core.activated { border-color: var(--pwr-color); color: var(--pwr-color); box-shadow: 0 0 20px var(--pwr-color); }
+        #core.unlocked { 
+            border-color: var(--pwr-color); color: var(--pwr-color); 
+            box-shadow: 0 0 30px var(--pwr-color);
+        }
 
-        /* 手機控制器區 */
-        #controls {
-            margin-top: 40px;
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 15px;
-            width: 90%;
+        /* 分離式控制區：放在底部方便手指點擊 */
+        #control-panel {
+            width: 100%;
             max-width: 400px;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            box-sizing: border-box;
+            background: rgba(20, 20, 20, 0.8);
+            border-top: 1px solid #333;
         }
 
-        .ctrl-btn {
-            background: rgba(40, 40, 40, 0.8);
-            border: 1px solid #555;
-            color: #eee;
-            padding: 20px 10px;
+        .btn {
+            background: #1a1a1a;
+            border: 2px solid #444;
+            color: #fff;
+            padding: 25px 10px;
             font-family: 'RE_Font';
-            font-size: 1.2em;
+            font-size: 1.1em;
+            text-transform: uppercase;
+            border-radius: 5px;
             text-align: center;
-            border-radius: 8px;
-            cursor: pointer;
-            active: background: #600;
+            box-shadow: inset 0 0 10px #000;
         }
-
-        .ctrl-btn:active { background: #400; border-color: #f00; transform: scale(0.95); }
-        .ctrl-btn.fixed { opacity: 0.3; cursor: not-allowed; }
-
-        .timer { margin-top: 10px; color: #f00; font-size: 1.2em; }
+        .btn:active { background: #500; border-color: #f00; transform: scale(0.95); }
+        .btn.fixed-btn { opacity: 0.2; color: #666; }
 
         /* 勝利畫面 */
         .overlay { 
@@ -102,124 +119,144 @@
             justify-content: center; align-items: center; z-index: 100;
         }
         .stranger-text { 
-            color: #f1c40f; font-size: 1.8em; line-height: 2.2; 
-            letter-spacing: 10px; text-shadow: 0 0 30px var(--pwr-color); 
+            color: #f1c40f; font-size: 1.8em; line-height: 2.8; 
+            letter-spacing: 12px; text-shadow: 0 0 40px var(--pwr-color); 
             white-space: pre-line; text-align: center;
         }
     </style>
 </head>
 <body>
 
-    <h2>ROTARY SYSTEM</h2>
-    <div class="timer">STABILITY: <span id="time-display">60</span>s</div>
+    <div class="header">
+        <h2>ROTARY INTERFACE</h2>
+        <div class="timer">STABILITY: <span id="time-display">60</span>s</div>
+    </div>
     
-    <div id="puzzle-stage">
-        <div style="position:absolute; top:-20px; color:var(--pwr-color); font-size:20px;">▼</div>
+    <div id="puzzle-container">
+        <div class="target-indicator">▼</div>
         <div id="core">LOCKED</div>
     </div>
 
-    <div id="controls">
-        <div class="ctrl-btn" onclick="rotateLogic(3)">OUTER</div>
-        <div class="ctrl-btn" onclick="rotateLogic(2)">MIDDLE A</div>
-        <div class="ctrl-btn fixed">FIXED</div>
-        <div class="ctrl-btn" onclick="rotateLogic(0)">INNER</div>
+    <div id="control-panel">
+        <div class="btn" onclick="handleRotate(3)">Ring: Outer</div>
+        <div class="btn" onclick="handleRotate(2)">Ring: Mid-Out</div>
+        <div class="btn fixed-btn">Ring: Mid-In (Fixed)</div>
+        <div class="btn" onclick="handleRotate(0)">Ring: Inner</div>
     </div>
 
     <div id="overlay" class="overlay">
         <h1 id="status-text" class="stranger-text"></h1>
-        <button style="margin-top:30px; background:transparent; color:#fff; border:1px solid #666; padding:10px 30px;" onclick="location.reload()">RETRY</button>
+        <button style="margin-top:40px; background:transparent; color:#fff; border:1px solid #444; padding:15px 40px;" onclick="location.reload()">RE-INITIALIZE</button>
     </div>
 
 <script>
+    // 角度說明：0度代表正上方 (12點鐘)
+    // 我們所有的初始角度和旋轉步進都必須是 45 的倍數，確保物理對齊
     const ringConfig = [
-        { id: 0, size: 100, contacts: [0, 180], rot: 0, speed: 90, locked: false },
-        { id: 1, size: 170, contacts: [0, 90, 180], rot: 0, speed: 45, locked: true },
-        { id: 2, size: 240, contacts: [0, 270], rot: 0, speed: 90, locked: false },
-        { id: 3, size: 310, contacts: [0, 135], rot: 0, speed: 45, locked: false }
+        { id: 0, size: 120, contacts: [0, 180], rot: 0, step: 90, locked: false },  // 內
+        { id: 1, size: 190, contacts: [0, 90, 270], rot: 0, step: 45, locked: true },// 中內 (固定)
+        { id: 2, size: 260, contacts: [0, 225], rot: 0, step: 45, locked: false },   // 中外
+        { id: 3, size: 330, contacts: [0, 135], rot: 0, step: 90, locked: false }    // 外
     ];
 
     let timeLeft = 60, isWin = false;
 
     function init() {
-        const stage = document.getElementById('puzzle-stage');
+        const container = document.getElementById('puzzle-container');
+        
         ringConfig.forEach(cfg => {
             const ring = document.createElement('div');
             ring.className = 'ring';
             ring.id = `ring-${cfg.id}`;
             ring.style.width = cfg.size + 'px';
             ring.style.height = cfg.size + 'px';
+            
+            // 隨機初始角度，但必須是 45 的倍數，這樣旋轉後才對得準
             cfg.rot = Math.floor(Math.random() * 8) * 45;
             ring.style.transform = `rotate(${cfg.rot}deg)`;
 
             cfg.contacts.forEach(angle => {
                 const b = document.createElement('div');
                 b.className = 'brush';
-                b.style.transformOrigin = `5px ${cfg.size/2 + 12}px`;
+                // 修正轉軸中心
+                b.style.transformOrigin = `6px ${cfg.size/2 + 14}px`;
                 b.style.transform = `rotate(${angle}deg)`;
                 ring.appendChild(b);
             });
-            stage.appendChild(ring);
+            container.appendChild(ring);
         });
+
         startTimer();
-        updatePower();
+        checkPower();
     }
 
-    function rotateLogic(idx) {
+    function handleRotate(idx) {
         if(isWin) return;
-        
-        // 觸覺反饋 (如果手機支援)
-        if (window.navigator.vibrate) window.navigator.vibrate(20);
 
-        ringConfig[idx].rot = (ringConfig[idx].rot + ringConfig[idx].speed) % 360;
+        // 主環旋轉
+        ringConfig[idx].rot = (ringConfig[idx].rot + ringConfig[idx].step) % 360;
         
-        // 連動
-        if(idx === 3) ringConfig[0].rot = (ringConfig[0].rot - 45) % 360;
-        if(idx === 0) ringConfig[2].rot = (ringConfig[2].rot + 45) % 360;
+        // 聯動機制
+        if(idx === 3) ringConfig[0].rot = (ringConfig[0].rot - 45) % 360; // 轉外環，內環逆轉 45
+        if(idx === 0) ringConfig[2].rot = (ringConfig[2].rot + 45) % 360; // 轉內環，中外環順轉 45
 
+        // 更新視覺
         ringConfig.forEach(cfg => {
             document.getElementById(`ring-${cfg.id}`).style.transform = `rotate(${cfg.rot}deg)`;
         });
 
-        setTimeout(updatePower, 300);
+        // 檢查電力 (延遲 400ms 等動畫轉完)
+        setTimeout(checkPower, 400);
     }
 
-    function updatePower() {
-        let win = true;
+    function checkPower() {
+        let winStatus = true;
+
         ringConfig.forEach(cfg => {
             const el = document.getElementById(`ring-${cfg.id}`);
             const brushes = el.getElementsByClassName('brush');
-            let aligned = false;
+            let isAnyBrushAtTop = false;
 
-            cfg.contacts.forEach((angle, i) => {
-                let current = (angle + cfg.rot) % 360;
-                while(current < 0) current += 360;
-                const isLit = Math.abs(current) < 5 || Math.abs(current - 360) < 5;
-                brushes[i].classList.toggle('lit', isLit);
-                if(isLit) aligned = true;
+            cfg.contacts.forEach((baseAngle, i) => {
+                // 當前接點位置 = (原始角度 + 圓環旋轉角度) % 360
+                let currentPos = (baseAngle + cfg.rot) % 360;
+                while(currentPos < 0) currentPos += 360;
+
+                // 判斷是否正對上方 (容錯率度數設為 5)
+                const isAtTop = (currentPos < 5 || currentPos > 355);
+                brushes[i].classList.toggle('active', isAtTop);
+                if(isAtTop) isAnyBrushAtTop = true;
             });
 
-            if(aligned) el.classList.add('powered');
-            else { el.classList.remove('powered'); win = false; }
+            if(isAnyBrushAtTop) {
+                el.classList.add('powered');
+            } else {
+                el.classList.remove('powered');
+                winStatus = false;
+            }
         });
 
-        if(win) {
+        if(winStatus) {
             isWin = true;
-            document.getElementById('core').classList.add('activated');
-            document.getElementById('core').innerText = "OPEN";
-            setTimeout(() => {
-                document.getElementById('status-text').innerText = "Congratulations, stranger!\nPlease claim your reward.";
-                document.getElementById('overlay').style.display = 'flex';
-            }, 800);
+            document.getElementById('core').classList.add('unlocked');
+            document.getElementById('core').innerText = "ONLINE";
+            setTimeout(showVictory, 1000);
         }
     }
 
+    function showVictory() {
+        const o = document.getElementById('overlay');
+        document.getElementById('status-text').innerText = "Congratulations, stranger!\nPlease claim your reward.";
+        o.style.display = 'flex';
+    }
+
     function startTimer() {
-        const timer = setInterval(() => {
+        const t = setInterval(() => {
             if(!isWin) {
                 timeLeft--;
                 document.getElementById('time-display').innerText = timeLeft;
-                if(timeLeft <= 0) { clearInterval(timer); location.reload(); }
-            } else clearInterval(timer);
+                if(timeLeft <= 0) { clearInterval(t); location.reload(); }
+            } else clearInterval(t);
         }, 1000);
     }
 
