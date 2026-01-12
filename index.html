@@ -2,12 +2,12 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>PCB LOGIC FIX v4</title>
+    <title>PCB LOGIC TERMINAL: ALL STAGES</title>
     <style>
         :root { --green: #3cf08d; --bg: #050806; --wire: #1a251e; }
         body { background: var(--bg); color: var(--green); font-family: monospace; display: flex; flex-direction: column; align-items: center; margin: 0; }
-        #ui { width: 360px; margin-top: 10px; display: flex; justify-content: space-between; padding: 10px; border-bottom: 2px solid var(--wire); }
-        #board { position: relative; width: 360px; height: 400px; background: #000; border: 2px solid #333; margin-top: 10px; }
+        #ui { width: 360px; margin-top: 15px; display: flex; justify-content: space-between; padding: 10px; border-bottom: 2px solid var(--wire); }
+        #board { position: relative; width: 360px; height: 380px; background: #000; border: 2px solid #333; margin-top: 10px; }
         canvas { position: absolute; top: 0; left: 0; z-index: 5; pointer-events: none; }
         .socket { position: absolute; width: 44px; height: 44px; background: #111; border: 2px dashed #444; z-index: 10; cursor: pointer; display: flex; justify-content: center; align-items: center; }
         .socket.filled { border: 2px solid #555; }
@@ -16,11 +16,11 @@
         .cell { position: absolute; width: 14px; height: 14px; border: 2px solid #333; border-radius: 50%; z-index: 50; background: #000; }
         .cell.lit { background: var(--green); border-color: #fff; box-shadow: 0 0 15px var(--green); }
         #inv { width: 360px; margin-top: 10px; display: flex; gap: 8px; background: #111; padding: 10px; box-sizing: border-box; }
-        .item { width: 60px; height: 50px; border: 2px solid #444; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; }
+        .item { width: 60px; height: 55px; border: 2px solid #444; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; }
         .item.active { border-color: var(--green); background: #0a150f; }
         .item svg { width: 22px; height: 22px; stroke: var(--green); stroke-width: 3; fill: none; }
-        .count { font-size: 10px; color: #888; }
-        button { background: #000; color: var(--green); border: 1px solid var(--green); padding: 5px; cursor: pointer; }
+        .count { font-size: 10px; color: #888; margin-top: 2px; }
+        button { background: #000; color: var(--green); border: 1px solid var(--green); padding: 5px 10px; cursor: pointer; font-family: monospace; }
     </style>
 </head>
 <body>
@@ -31,55 +31,51 @@
 </div>
 
 <div id="board">
-    <canvas id="cvs" width="360" height="400"></canvas>
+    <canvas id="cvs" width="360" height="380"></canvas>
     <div id="tag" style="position:absolute; font-size:10px; color:var(--green); font-weight:bold;">[POWER IN]</div>
 </div>
 
 <div id="inv">
-    <div class="item" onclick="selP('L')" id="iL"><svg viewBox="0 0 40 40"><path d="M20 5 V20 H35" /></svg><span class="count" id="cL">0</span></div>
-    <div class="item" onclick="selP('T')" id="iT"><svg viewBox="0 0 40 40"><path d="M5 20 H35 M20 20 V35" /></svg><span class="count" id="cT">0</span></div>
-    <div class="item" onclick="selP('X')" id="iX"><svg viewBox="0 0 40 40"><path d="M5 20 H35 M20 5 V35" /></svg><span class="count" id="cX">0</span></div>
-    <button onclick="reset()">RESET</button>
+    <div class="item" onclick="selP('L')" id="iL"><svg viewBox="0 0 40 40"><path d="M20 5 V20 H35" /></svg><span class="count" id="cL">L:0</span></div>
+    <div class="item" onclick="selP('T')" id="iT"><svg viewBox="0 0 40 40"><path d="M5 20 H35 M20 20 V35" /></svg><span class="count" id="cT">T:0</span></div>
+    <div class="item" onclick="selP('X')" id="iX"><svg viewBox="0 0 40 40"><path d="M5 20 H35 M20 5 V35" /></svg><span class="count" id="cX">X:0</span></div>
+    <button onclick="reset()" style="margin-left:auto;">RESET</button>
 </div>
 
 <script>
-const cvs = document.getElementById('cvs');
-const ctx = cvs.getContext('2d');
-let sel = null, curLv = 1;
-let sockets = [], cells = [], wires = [], inventory = {};
+const cvs = document.getElementById('cvs'), ctx = cvs.getContext('2d');
+let sel = null, curLv = 1, inventory = {}, sockets = [], cells = [], wires = [];
 
-// 0:上, 1:右, 2:下, 3:左
-const COMP_LOGIC = {
+// 端口：0上, 1右, 2下, 3左
+const LOGIC = {
     'L': (r) => [[0,1], [1,2], [2,3], [3,0]][r/90],
-    'T': (r) => [[1,2,3], [0,1,2], [3,0,1], [2,3,0]][r/90], // 0:腳朝下通左下右, 90:腳朝左通上右下...
+    'T': (r) => [[1,2,3], [2,3,0], [3,0,1], [0,1,2]][r/90], // 0:腳向下通左下右, 90:腳向左通上左下...
     'X': (r) => [0,1,2,3]
 };
 
 const levels = {
-    1: { name: "STAGE 1: TOP DOWN", goal: 3, inv: {L:3, T:1, X:0}, tag: {x:145, y:-10},
-        s:[{x:180,y:80},{x:80,y:180},{x:280,y:180}],
-        c:[{x:30,y:180},{x:180,y:300},{x:330,y:180}],
-        w:[
-            {f:[180,0], t:[180,80], power:true, pT:0, sid:0}, // 電力從上方進入 s0 的端口 0 (上)
-            {f:[180,80], t:[80,80], sid:0, pF:3}, // 從 s0 的 3 (左) 出發
-            {f:[80,80], t:[80,180], sid:1, pT:0}, // 進入 s1 的 0 (上)
-            {f:[180,80], t:[280,80], sid:0, pF:1}, // 從 s0 的 1 (右) 出發
-            {f:[280,80], t:[280,180], sid:2, pT:0}, // 進入 s2 的 0 (上)
-            {f:[180,80], t:[180,300], sid:0, pF:2}, // 從 s0 的 2 (下) 出發直接連電源
-            {f:[80,180], t:[30,180], sid:1, pF:3}, // 從 s1 的 3 (左) 出發連電源
-            {f:[280,180], t:[330,180], sid:2, pF:1} // 從 s2 的 1 (右) 出發連電源
+    1: { name: "STAGE 1: VERTICAL", goal: 3, inv: {L:2, T:1, X:1}, tag: {x:145, y:-10},
+        s: [{x:180,y:80},{x:80,y:180},{x:280,y:180}],
+        c: [{x:30,y:180},{x:180,y:300},{x:330,y:180}],
+        w: [
+            {f:[180,0], t:[180,80], power:true, pT:0, sid:0}, // 頂部入 s0(上)
+            {f:[180,80], t:[80,80], sid:0, pF:3}, {f:[80,80], t:[80,180], sid:1, pT:0}, // s0(左) -> s1(上)
+            {f:[180,80], t:[280,80], sid:0, pF:1}, {f:[280,80], t:[280,180], sid:2, pT:0}, // s0(右) -> s2(上)
+            {f:[180,80], t:[180,300], sid:0, pF:2}, // s0(下) -> 電源
+            {f:[80,180], t:[30,180], sid:1, pF:3}, // s1(左) -> 電源
+            {f:[280,180], t:[330,180], sid:2, pF:1} // s2(右) -> 電源
         ]
     },
     2: { name: "STAGE 2: LATERAL", goal: 3, inv: {L:4, T:1, X:1}, tag: {x:-10, y:195},
-        s:[{x:80,y:200},{x:180,y:200},{x:180,y:100}],
-        c:[{x:180,y:300},{x:300,y:100},{x:300,y:200}],
-        w:[
-            {f:[0,200], t:[80,200], power:true, pT:3, sid:0}, // 電力從左方進入 s0 的端口 3 (左)
-            {f:[80,200], t:[180,200], sid:0, pF:1, pT:3, sid2:1}, // 從 s0 的 1(右) 出發進入 s1 的 3(左)
-            {f:[180,200], t:[180,300], sid:1, pF:2}, // 從 s1 的 2 (下) 出發
-            {f:[180,200], t:[180,100], sid:1, pF:0, pT:2, sid2:2}, // 從 s1 的 0 (上) 出發進入 s2 的 2 (下)
-            {f:[180,100], t:[300,100], sid:2, pF:1}, // 從 s2 的 1 (右) 出發
-            {f:[180,200], t:[300,200], sid:1, pF:1} // 從 s1 的 1 (右) 出發
+        s: [{x:80,y:200},{x:180,y:200},{x:180,y:100}],
+        c: [{x:180,y:300},{x:300,y:100},{x:300,y:200}],
+        w: [
+            {f:[0,200], t:[80,200], power:true, pT:3, sid:0}, // 左側入 s0(左)
+            {f:[80,200], t:[180,200], sid:0, pF:1, pT:3, sidNext:1}, // s0(右) -> s1(左)
+            {f:[180,200], t:[180,300], sid:1, pF:2}, // s1(下) -> 電源
+            {f:[180,200], t:[180,100], sid:1, pF:0, pT:2, sidNext:2}, // s1(上) -> s2(下)
+            {f:[180,100], t:[300,100], sid:2, pF:1}, // s2(右) -> 電源
+            {f:[180,200], t:[300,200], sid:1, pF:1}  // s1(右) -> 電源
         ]
     }
 };
@@ -89,12 +85,11 @@ function selP(t){ if(inventory[t]>0){ sel=t; document.querySelectorAll('.item').
 function initStage(lv){
     curLv=lv; inventory={...levels[lv].inv}; sockets=[]; cells=[]; wires=JSON.parse(JSON.stringify(levels[lv].w));
     document.getElementById('stage-info').innerText = levels[lv].name;
-    const tag = document.getElementById('tag');
-    tag.style.left = levels[lv].tag.x+'px'; tag.style.top = levels[lv].tag.y+'px';
+    const t = document.getElementById('tag'); t.style.left = levels[lv].tag.x+'px'; t.style.top = levels[lv].tag.y+'px';
     document.getElementById('board').querySelectorAll('.socket,.cell').forEach(e=>e.remove());
     levels[lv].s.forEach((p,i)=>{
         const d=document.createElement('div'); d.className='socket'; d.style.left=(p.x-22)+'px'; d.style.top=(p.y-22)+'px';
-        const sObj={id:i, x:p.x, y:p.y, type:null, rot:0, el:d};
+        const sObj={id:i, type:null, rot:0, el:d};
         d.onclick=()=>{ if(!sObj.type && sel){ sObj.type=sel; inventory[sel]--; sel=null; } else if(sObj.type){ sObj.rot=(sObj.rot+90)%360; } update(); };
         sockets.push(sObj); document.getElementById('board').appendChild(d);
     });
@@ -106,61 +101,39 @@ function initStage(lv){
 }
 
 function update(){
-    // 重置所有電力狀態
-    let poweredSockets = new Set();
-    wires.forEach(w => w.p = false);
-
-    let changed = true;
+    wires.forEach(w=>w.p=false);
+    let powS = new Set(), changed = true;
     while(changed){
         changed = false;
-        wires.forEach(w => {
+        wires.forEach(w=>{
             if(w.p) return;
-            // 判定：這條線是否從主電源或已通電線路獲得電力
-            let sourceOk = w.power || wires.some(sw => sw.p && sw.t[0]===w.f[0] && sw.t[1]===w.f[1]);
-
-            if(sourceOk){
-                // 如果這條線進入一個組件 (pT)
-                if(w.sid !== undefined && w.pT !== undefined){
+            let hasIn = w.power || wires.some(sw=>sw.p && sw.t[0]===w.f[0] && sw.t[1]===w.f[1]);
+            if(hasIn){
+                if(w.pT!==undefined){ // 進入組件
                     const s = sockets[w.sid];
-                    if(s.type && COMP_LOGIC[s.type](s.rot).includes(w.pT)){
-                        w.p = true; changed = true;
-                        poweredSockets.add(s.id);
-                    }
-                } 
-                // 如果這條線是從已通電組件發出的 (pF)
-                else if(w.sid !== undefined && w.pF !== undefined){
+                    if(s.type && LOGIC[s.type](s.rot).includes(w.pT)){ w.p=true; powS.add(s.id); changed=true; }
+                } else if(w.pF!==undefined){ // 從組件出發
                     const s = sockets[w.sid];
-                    if(s.type && poweredSockets.has(s.id) && COMP_LOGIC[s.type](s.rot).includes(w.pF)){
-                        w.p = true; changed = true;
-                    }
-                }
-                // 普通導線
-                else if(w.sid === undefined) { w.p = true; changed = true; }
+                    if(s.type && powS.has(s.id) && LOGIC[s.type](s.rot).includes(w.pF)){ w.p=true; changed=true; }
+                } else { w.p=true; changed=true; } // 普通導線
             }
         });
     }
-
-    // 更新視覺效果
-    sockets.forEach(s => {
+    sockets.forEach(s=>{
         if(s.type){
             s.el.innerHTML=`<svg viewBox="0 0 40 40" style="transform:rotate(${s.rot}deg)">${getSVG(s.type)}</svg>`;
-            s.el.classList.toggle('powered', poweredSockets.has(s.id));
+            s.el.classList.toggle('powered', powS.has(s.id));
         }
     });
     let lit = 0;
-    cells.forEach(c => {
-        const isOn = wires.some(w => w.p && w.t[0]===c.x && w.t[1]===c.y);
-        c.el.classList.toggle('lit', isOn);
-        if(isOn) lit++;
+    cells.forEach(c=>{
+        const on = wires.some(w=>w.p && w.t[0]===c.x && w.t[1]===c.y);
+        c.el.classList.toggle('lit', on); if(on) lit++;
     });
-
-    document.getElementById('stat').innerText = `NODES: ${lit} / ${levels[curLv].goal}`;
-    document.getElementById('cL').innerText = `L:${inventory.L}`; document.getElementById('cT').innerText = `T:${inventory.T}`; document.getElementById('cX').innerText = `X:${inventory.X}`;
-    drawWires();
-
-    if(lit >= levels[curLv].goal && curLv < 2) {
-        setTimeout(()=>{ if(confirm("NEXT LEVEL?")) initStage(2); }, 300);
-    }
+    document.getElementById('stat').innerText=`NODES: ${lit} / ${levels[curLv].goal}`;
+    document.getElementById('cL').innerText=`L:${inventory.L}`; document.getElementById('cT').innerText=`T:${inventory.T}`; document.getElementById('cX').innerText=`X:${inventory.X}`;
+    draw();
+    if(lit >= levels[curLv].goal && curLv < 2) setTimeout(()=>{ if(confirm("STAGE CLEAR! NEXT?")) initStage(2); }, 300);
 }
 
 function getSVG(t){
@@ -169,15 +142,13 @@ function getSVG(t){
     if(t==='X') return '<path d="M5 20 H35 M20 5 V35" />';
 }
 
-function drawWires(){
-    ctx.clearRect(0,0,360,400);
-    wires.forEach(w => {
+function draw(){
+    ctx.clearRect(0,0,360,380);
+    wires.forEach(w=>{
         ctx.beginPath(); ctx.moveTo(w.f[0],w.f[1]); ctx.lineTo(w.t[0],w.t[1]);
-        ctx.strokeStyle = w.p ? '#3cf08d' : '#1a251e'; ctx.lineWidth = w.p ? 4 : 2;
-        ctx.stroke();
+        ctx.strokeStyle=w.p?'#3cf08d':'#1a251e'; ctx.lineWidth=w.p?4:2; ctx.stroke();
     });
 }
-
 function reset(){ initStage(curLv); }
 initStage(1);
 </script>
