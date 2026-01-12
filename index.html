@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RE2 CIRCUIT - MASTERMIND MODE</title>
+    <title>RE2 CIRCUIT - ROTARY DIAL</title>
     <style>
         @font-face {
             font-family: 'RE_Font';
@@ -14,7 +14,7 @@
             --pwr-color: #f1c40f; 
             --bg-color: #050505;
             --re-red: #8b0000;
-            --locked-bg: #2b0000;
+            --ring-border: #333;
         }
 
         body { 
@@ -26,260 +26,224 @@
             overflow: hidden;
         }
 
-        h2 { color: var(--re-red); text-transform: uppercase; letter-spacing: 8px; margin-bottom: 10px; font-size: 2.2em; text-shadow: 0 0 15px rgba(139, 0, 0, 0.5); }
+        h2 { color: var(--re-red); text-transform: uppercase; letter-spacing: 10px; margin-bottom: 20px; font-size: 2.2em; }
 
-        #info-panel { 
-            margin-bottom: 20px; font-size: 1.2em; display: flex; gap: 50px; 
-            background: rgba(15, 15, 15, 0.95); padding: 12px 40px; border: 1px solid #333;
-            box-shadow: inset 0 0 15px #000;
+        #game-container {
+            position: relative;
+            width: 500px;
+            height: 500px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle, #111 0%, #000 70%);
+            border-radius: 50%;
+            border: 10px solid #222;
+            box-shadow: 0 0 50px #000;
         }
 
-        .timer { color: #ff0000; font-weight: bold; }
-        #game-container { position: relative; padding: 60px; background: #0a0a0a; border: 4px solid #222; box-shadow: 0 0 100px #000; }
-        #game-board { display: grid; gap: 5px; background: #000; padding: 5px; border: 1px solid #1a1a1a; }
-
-        .port { position: absolute; font-size: 12px; font-weight: bold; text-transform: uppercase; z-index: 5; letter-spacing: 2px; }
-        .in-p { color: var(--pwr-color); left: 10px; top: 85px; text-shadow: 0 0 8px var(--pwr-color); }
-        .out-p { right: 10px; bottom: 85px; color: #333; transition: 0.3s; }
-        .out-p.active { color: var(--pwr-color); text-shadow: 0 0 20px var(--pwr-color); }
-
-        .tile { width: 75px; height: 75px; background: #111; cursor: pointer; position: relative; transition: transform 0.2s, background 0.2s; }
-        .tile:hover:not(.locked) { background: #1a1a1a; }
-        .tile.locked { cursor: not-allowed; background: var(--locked-bg); border: 1px solid #500; }
-        .tile.locked::before { content: 'FIXED'; position: absolute; font-size: 8px; color: #f00; top: 2px; left: 2px; z-index: 10; opacity: 0.7; }
-
-        .wire { position: absolute; background: #2a2a2a; z-index: 1; transition: background 0.3s; }
-        .tile::after { content: ''; position: absolute; width: 14px; height: 14px; background: #2a2a2a; left: 30.5px; top: 30.5px; border-radius: 2px; z-index: 2; }
-        
-        .w-up { width: 8px; height: 38px; left: 33.5px; top: 0; }
-        .w-right { width: 38px; height: 8px; left: 37.5px; top: 33.5px; }
-        .w-down { width: 8px; height: 38px; left: 33.5px; top: 37.5px; }
-        .w-left { width: 38px; height: 8px; left: 0; top: 33.5px; }
-
-        .powered .wire:not(.fake), .powered::after { background: var(--pwr-color) !important; box-shadow: 0 0 15px var(--pwr-color); }
-        
-        /* 假線閃爍 */
-        .flicker .wire.fake { animation: failure 0.4s infinite alternate; }
-        @keyframes failure {
-            from { background: var(--pwr-color); box-shadow: 0 0 12px var(--pwr-color); }
-            to { background: #2a2a2a; box-shadow: none; }
+        /* 注入點 */
+        .power-source {
+            position: absolute; top: -40px; color: var(--pwr-color);
+            font-weight: bold; letter-spacing: 3px; text-shadow: 0 0 10px var(--pwr-color);
         }
 
-        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.98); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 100; text-align: center; }
-        #status-text { font-size: 4em; margin-bottom: 20px; font-family: 'RE_Font', serif; letter-spacing: 5px; }
-        
+        .ring {
+            position: absolute;
+            border: 4px solid var(--ring-border);
+            border-radius: 50%;
+            transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .ring:hover { border-color: #555; background: rgba(255,255,255,0.02); }
+        .ring.locked { cursor: not-allowed; border-color: var(--re-red); opacity: 0.8; }
+        .ring.locked::after { content: 'LOCKED'; position: absolute; font-size: 10px; color: #f00; top: 10px; }
+
+        /* 線路外觀 */
+        .path {
+            position: absolute;
+            background: #222;
+            transition: background 0.3s, box-shadow 0.3s;
+        }
+        .powered .path { background: var(--pwr-color); box-shadow: 0 0 15px var(--pwr-color); }
+
+        /* 核心 */
+        #core {
+            width: 60px; height: 60px; background: #111;
+            border: 4px solid #444; border-radius: 50%;
+            z-index: 10; display: flex; justify-content: center; align-items: center;
+        }
+        #core.active { background: var(--pwr-color); box-shadow: 0 0 30px var(--pwr-color); border-color: #fff; }
+
+        /* 覆蓋層 */
+        .overlay { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(0,0,0,0.98); display: none; flex-direction: column; 
+            justify-content: center; align-items: center; z-index: 100; text-align: center; 
+        }
         .stranger-text { 
-            color: #f1c40f; font-size: 2.5em !important; 
-            line-height: 2.8; letter-spacing: 18px !important; 
-            text-shadow: 0 0 40px rgba(241, 196, 15, 0.9); 
+            color: #f1c40f; font-size: 2.5em; line-height: 2.8; 
+            letter-spacing: 18px; text-shadow: 0 0 40px rgba(241, 196, 15, 0.9); 
             white-space: pre-line;
         }
 
-        button { background: transparent; color: #fff; border: 1px solid #444; padding: 15px 60px; cursor: pointer; font-size: 1.5em; font-family: 'RE_Font', sans-serif; letter-spacing: 3px; }
-        button:hover { background: #600; border-color: #f00; }
+        .timer { position: absolute; top: 20px; right: 20px; color: #f00; font-size: 1.5em; letter-spacing: 3px; }
     </style>
 </head>
 <body>
 
-    <h2>CIRCUIT CONTROL: OVERLOAD</h2>
+    <div class="timer">STABILITY: <span id="time-display">60</span>s</div>
+    <h2>ROTARY SYSTEM</h2>
     
-    <div id="info-panel">
-        <div>LVL: <span id="lvl-display">1</span></div>
-        <div class="timer">SEC: <span id="time-display">60</span></div>
-    </div>
-
     <div id="game-container">
-        <div class="port in-p">INPUT</div>
-        <div id="game-board"></div>
-        <div id="out-label" class="port out-p">OUTPUT</div>
+        <div class="power-source">▼ POWER INPUT ▼</div>
+        <div id="core">CORE</div>
     </div>
 
     <div id="overlay" class="overlay">
-        <h1 id="status-text"></h1>
-        <button id="action-btn" onclick="handleBtnClick()">RETRY</button>
+        <h1 id="status-text" class="stranger-text"></h1>
+        <button id="retry-btn" style="margin-top:40px; background:transparent; color:#fff; border:1px solid #444; padding:15px 40px; cursor:pointer; font-family:'RE_Font';" onclick="location.reload()">RETRY</button>
     </div>
 
 <script>
-    const levels = [
-        {size: 3, locks: 0, fakeChance: 0, deadTiles: 0},
-        {size: 4, locks: 3, fakeChance: 0.5, deadTiles: 2},
-        {size: 5, locks: 8, fakeChance: 0.85, deadTiles: 5} // 第 3 關強化
+    const ringConfig = [
+        { id: 3, size: 440, contacts: [0, 90, 180], rot: 0, speed: 90, locked: false },  // 最外環
+        { id: 2, size: 320, contacts: [45, 180, 270], rot: 0, speed: 45, locked: false }, // 中外環
+        { id: 1, size: 200, contacts: [0, 135, 225], rot: 0, speed: 90, locked: true },  // 中內環 (固定)
+        { id: 0, size: 100, contacts: [90, 270], rot: 0, speed: 45, locked: false }      // 中心環
     ];
-    let currentLvl = 0, timeLeft = 60, timerId = null, tiles = [], isLocked = false;
 
-    function startGame() {
-        isLocked = false;
-        document.getElementById('overlay').style.display = 'none';
-        const cfg = levels[currentLvl];
-        document.getElementById('lvl-display').innerText = currentLvl + 1;
-        document.getElementById('out-label').classList.remove('active');
-        generateHardcoreLevel(cfg);
+    let timeLeft = 60;
+    let isWin = false;
+
+    function initGame() {
+        const container = document.getElementById('game-container');
+        const core = document.getElementById('core');
+
+        ringConfig.forEach((cfg, index) => {
+            const ring = document.createElement('div');
+            ring.className = `ring ${cfg.locked ? 'locked' : ''}`;
+            ring.id = `ring-${index}`;
+            ring.style.width = cfg.size + 'px';
+            ring.style.height = cfg.size + 'px';
+            ring.style.zIndex = 5 - index;
+            
+            // 隨機初始角度
+            cfg.rot = Math.floor(Math.random() * 8) * 45;
+            ring.style.transform = `rotate(${cfg.rot}deg)`;
+
+            // 生成接點視覺
+            cfg.contacts.forEach(angle => {
+                const path = document.createElement('div');
+                path.className = 'path';
+                path.style.width = '8px';
+                path.style.height = '40px';
+                path.style.position = 'absolute';
+                path.style.top = '-20px';
+                path.style.left = (cfg.size/2 - 4) + 'px';
+                path.style.transformOrigin = `4px ${cfg.size/2 + 20}px`;
+                path.style.transform = `rotate(${angle}deg)`;
+                ring.appendChild(path);
+            });
+
+            if(!cfg.locked) {
+                ring.onclick = () => rotateRing(index);
+            }
+
+            container.appendChild(ring);
+        });
+
         startTimer();
+        checkConnection();
     }
 
-    function generateHardcoreLevel(cfg) {
-        const boardEl = document.getElementById('game-board');
-        boardEl.innerHTML = '';
-        boardEl.style.gridTemplateColumns = `repeat(${cfg.size}, 75px)`;
-        tiles = [];
-
-        const grid = Array.from({length: cfg.size}, () => Array.from({length: cfg.size}, () => ({real:[], fake:[], isDead: false})));
+    function rotateRing(idx) {
+        if(isWin) return;
         
-        // 1. 產生極度曲折的路徑
-        let r = 0, c = 0;
-        grid[r][c].real.push(3);
-        const path = [[0,0]];
-        while(r < cfg.size - 1 || c < cfg.size - 1) {
-            let possible = [];
-            if(r < cfg.size - 1) possible.push([r+1, c, 2, 0]);
-            if(c < cfg.size - 1) possible.push([r, c+1, 1, 3]);
-            
-            // 隨機選一個但給予方向權重，避免太直
-            let choice = (Math.random() > 0.4) ? possible[possible.length-1] : possible[0];
-            grid[r][c].real.push(choice[2]);
-            r = choice[0]; c = choice[1];
-            grid[r][c].real.push(choice[3]);
-            path.push([r, c]);
-        }
-        grid[cfg.size-1][cfg.size-1].real.push(1);
+        // 旋轉點擊的環
+        ringConfig[idx].rot += ringConfig[idx].speed;
+        document.getElementById(`ring-${idx}`).style.transform = `rotate(${ringConfig[idx].rot}deg)`;
 
-        // 2. 隨機標記「死路格子」(完全不通電的裝飾格子)
-        let deadCount = 0;
-        while(deadCount < cfg.deadTiles) {
-            let dr = Math.floor(Math.random()*cfg.size), dc = Math.floor(Math.random()*cfg.size);
-            if(grid[dr][dc].real.length === 0) {
-                grid[dr][dc].isDead = true;
-                grid[dr][dc].fake = [0,1,2,3].sort(() => 0.5 - Math.random()).slice(0, 2);
-                deadCount++;
-            }
+        // 連動邏輯：轉動最外環(3)時，最內環(0)會跟著反向轉
+        if(idx === 3) {
+            ringConfig[0].rot -= 45;
+            document.getElementById(`ring-0`).style.transform = `rotate(${ringConfig[0].rot}deg)`;
+        }
+        
+        // 轉動中心環(0)時，中外環(2)跟著轉
+        if(idx === 0) {
+            ringConfig[2].rot += 45;
+            document.getElementById(`ring-2`).style.transform = `rotate(${ringConfig[2].rot}deg)`;
         }
 
-        // 3. 固定塊佈置 (更嚴密的間隔)
-        let lockIdx = new Set();
-        let flatPath = path.map(p => p[0]*cfg.size + p[1]);
-        flatPath.sort(() => 0.5 - Math.random());
-        for(let idx of flatPath) {
-            if(lockIdx.size >= cfg.locks) break;
-            if(idx === 0 || idx === cfg.size*cfg.size-1) continue;
-            let pr = Math.floor(idx/cfg.size), pc = idx%cfg.size;
-            let clear = true;
-            lockIdx.forEach(l => {
-                if(Math.abs(Math.floor(l/cfg.size)-pr) + Math.abs((l%cfg.size)-pc) < 2) clear = false;
-            });
-            if(clear) lockIdx.add(idx);
-        }
-
-        for(let r=0; r<cfg.size; r++) {
-            for(let c=0; c<cfg.size; c++) {
-                let data = grid[r][c];
-                const idx = r*cfg.size + c;
-
-                // 填入混淆線路
-                if(!data.isDead && data.real.length > 0 && Math.random() < cfg.fakeChance) {
-                    let possible = [0,1,2,3].filter(d => !data.real.includes(d));
-                    data.fake.push(possible[Math.floor(Math.random()*possible.length)]);
-                } else if (!data.isDead && data.real.length === 0) {
-                    // 非正確路徑的普通格子填充
-                    data.fake = [[0,2],[1,3],[0,1,2]][Math.floor(Math.random()*3)];
-                }
-
-                const wrap = document.createElement('div');
-                wrap.className = 'tile' + (lockIdx.has(idx) ? ' locked' : '');
-                let rot = lockIdx.has(idx) ? 0 : Math.floor(Math.random()*4);
-
-                const tileObj = {
-                    element: wrap, real: data.real, fake: data.fake, rot: rot,
-                    isLocked: lockIdx.has(idx),
-                    getPowerExits: function() { return this.real.map(d => (d + this.rot) % 4); }
-                };
-
-                tileObj.real.forEach(d => {
-                    let w = document.createElement('div');
-                    w.className = 'wire ' + ['w-up','w-right','w-down','w-left'][d];
-                    wrap.appendChild(w);
-                });
-                tileObj.fake.forEach(d => {
-                    let w = document.createElement('div');
-                    w.className = 'wire fake ' + ['w-up','w-right','w-down','w-left'][d];
-                    wrap.appendChild(w);
-                });
-
-                wrap.style.transform = `rotate(${rot * 90}deg)`;
-                wrap.onclick = () => {
-                    if(isLocked || tileObj.isLocked) return;
-                    tileObj.rot = (tileObj.rot + 1) % 4;
-                    wrap.style.transform = `rotate(${tileObj.rot * 90}deg)`;
-                    checkCircuit();
-                };
-                boardEl.appendChild(wrap);
-                tiles.push(tileObj);
-            }
-        }
-        checkCircuit();
+        setTimeout(checkConnection, 500);
     }
 
-    function checkCircuit() {
-        const size = levels[currentLvl].size;
-        tiles.forEach(t => t.element.classList.remove('powered', 'flicker'));
+    function checkConnection() {
+        let currentPowerAngle = 0; // 電源從上方 0 度進入
+        let layersPowered = 0;
 
-        const powered = new Set(), queue = [];
-        if(tiles[0].getPowerExits().includes(3)) queue.push(0);
-
-        while(queue.length > 0) {
-            const idx = queue.shift();
-            if(powered.has(idx)) continue;
-            powered.add(idx);
-            tiles[idx].element.classList.add('powered');
-            if(tiles[idx].fake.length > 0) tiles[idx].element.classList.add('flicker');
-
-            const r = Math.floor(idx/size), c = idx%size;
-            const exits = tiles[idx].getPowerExits();
-            const nbs = [{d:0,nr:r-1,nc:c,o:2},{d:1,nr:r,nc:c+1,o:3},{d:2,nr:r+1,nc:c,o:0},{d:3,nr:r,nc:c-1,o:1}];
+        for (let i = ringConfig.length - 1; i >= 0; i--) {
+            const cfg = ringConfig[i];
+            const ringEl = document.getElementById(`ring-${i}`);
             
-            nbs.forEach(n => {
-                if(exits.includes(n.d) && n.nr>=0 && n.nr<size && n.nc>=0 && n.nc<size) {
-                    const nidx = n.nr*size+n.nc;
-                    if(tiles[nidx].getPowerExits().includes(n.o)) queue.push(nidx);
-                }
+            // 計算目前哪些接點在「頂點 (12點鐘方向)」
+            // 公式：(接點原始角度 + 目前旋轉角度) % 360 是否等於目標進入角度
+            let hasConnection = cfg.contacts.some(contactAngle => {
+                let actual = (contactAngle + cfg.rot) % 360;
+                while(actual < 0) actual += 360;
+                return Math.abs(actual - 0) < 5; // 檢查是否對齊頂部
             });
+
+            if (hasConnection) {
+                ringEl.classList.add('powered');
+                layersPowered++;
+            } else {
+                // 如果這一層斷了，後面全部斷
+                for(let j = i; j >= 0; j--) {
+                    document.getElementById(`ring-${j}`).classList.remove('powered');
+                }
+                break;
+            }
         }
 
-        const win = powered.has(tiles.length-1) && tiles[tiles.length-1].getPowerExits().includes(1);
-        document.getElementById('out-label').classList.toggle('active', win);
-        if(win) {
-            isLocked = true; clearInterval(timerId);
-            setTimeout(() => {
-                if(currentLvl < levels.length - 1) showOverlay("ALIVE", "NEXT LEVEL");
-                else showOverlay("Congratulations, stranger!\nPlease claim your reward.", "");
-            }, 800);
+        if(layersPowered === ringConfig.length) {
+            document.getElementById('core').classList.add('active');
+            victory();
+        } else {
+            document.getElementById('core').classList.remove('active');
         }
+    }
+
+    function victory() {
+        isWin = true;
+        clearInterval(timerId);
+        setTimeout(() => {
+            const overlay = document.getElementById('overlay');
+            const text = document.getElementById('status-text');
+            text.innerText = "Congratulations, stranger!\nPlease claim your reward.";
+            overlay.style.display = 'flex';
+        }, 800);
     }
 
     function startTimer() {
-        clearInterval(timerId);
         timerId = setInterval(() => {
-            if(!isLocked) { timeLeft--; document.getElementById('time-display').innerText = timeLeft; if(timeLeft <= 0) endGame(); }
+            if(!isWin) {
+                timeLeft--;
+                document.getElementById('time-display').innerText = timeLeft;
+                if(timeLeft <= 0) {
+                    clearInterval(timerId);
+                    alert("SYSTEM OVERLOAD: MISSION FAILED");
+                    location.reload();
+                }
+            }
         }, 1000);
     }
 
-    function endGame() { isLocked = true; clearInterval(timerId); showOverlay("YOU ARE DEAD", "RETRY"); }
-
-    function showOverlay(msg, btnTxt) {
-        const o = document.getElementById('overlay'), t = document.getElementById('status-text'), b = document.getElementById('action-btn');
-        t.innerText = msg; b.innerText = btnTxt;
-        if(msg.includes("Congratulations")) { t.className = "stranger-text"; b.classList.add("hidden"); }
-        else { t.className = (msg === "ALIVE") ? "alive-text" : "dead-text"; b.classList.remove("hidden"); }
-        o.style.display = 'flex';
-    }
-
-    function handleBtnClick() { 
-        if(document.getElementById('action-btn').innerText === "NEXT LEVEL") currentLvl++; 
-        else currentLvl = 0;
-        timeLeft = 60;
-        startGame(); 
-    }
-
-    startGame();
+    initGame();
 </script>
 </body>
 </html>
