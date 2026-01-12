@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>PCB REPAIR: MULTI-DIRECTIONAL FIX</title>
+    <title>RE4 LOGIC FINAL FIX</title>
     <style>
         :root { --green: #3cf08d; --bg: #050806; --wire: #1a251e; }
         body { background: var(--bg); color: var(--green); font-family: monospace; display: flex; flex-direction: column; align-items: center; margin: 0; }
@@ -10,7 +10,7 @@
         #board { position: relative; width: 360px; height: 380px; background: #000; border: 2px solid #333; margin-top: 10px; }
         canvas { position: absolute; top: 0; left: 0; z-index: 5; pointer-events: none; }
         .socket { position: absolute; width: 44px; height: 44px; background: #111; border: 2px dashed #444; z-index: 10; cursor: pointer; display: flex; justify-content: center; align-items: center; }
-        .socket.filled { border: 2px solid #555; }
+        .socket.powered { background: #0a150f; border-color: var(--green); }
         .socket svg { width: 36px; height: 36px; stroke: #333; stroke-width: 5; fill: none; }
         .socket.powered svg { stroke: var(--green); filter: drop-shadow(0 0 10px var(--green)); }
         .cell { position: absolute; width: 14px; height: 14px; border: 2px solid #333; border-radius: 50%; z-index: 50; background: #000; }
@@ -19,7 +19,6 @@
         .item { width: 60px; height: 55px; border: 2px solid #444; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; }
         .item.active { border-color: var(--green); background: #0a150f; }
         .item svg { width: 22px; height: 22px; stroke: var(--green); stroke-width: 3; fill: none; }
-        .count { font-size: 10px; color: #888; }
         button { background: #000; color: var(--green); border: 1px solid var(--green); padding: 5px; cursor: pointer; }
     </style>
 </head>
@@ -36,20 +35,20 @@
 </div>
 
 <div id="inv">
-    <div class="item" onclick="selP('L')" id="iL"><svg viewBox="0 0 40 40"><path d="M20 5 V20 H35" /></svg><span class="count" id="cL">L:0</span></div>
-    <div class="item" onclick="selP('T')" id="iT"><svg viewBox="0 0 40 40"><path d="M5 20 H35 M20 20 V35" /></svg><span class="count" id="cT">T:0</span></div>
-    <div class="item" onclick="selP('X')" id="iX"><svg viewBox="0 0 40 40"><path d="M5 20 H35 M20 5 V35" /></svg><span class="count" id="cX">X:0</span></div>
-    <button onclick="reset()" style="margin-left:auto;">RESET</button>
+    <div class="item" onclick="selP('L')" id="iL"><svg viewBox="0 0 40 40"><path d="M20 5 V20 H35" /></svg><span id="cL" style="font-size:10px">0</span></div>
+    <div class="item" onclick="selP('T')" id="iT"><svg viewBox="0 0 40 40"><path d="M5 20 H35 M20 20 V35" /></svg><span id="cT" style="font-size:10px">0</span></div>
+    <div class="item" onclick="selP('X')" id="iX"><svg viewBox="0 0 40 40"><path d="M5 20 H35 M20 5 V35" /></svg><span id="cX" style="font-size:10px">0</span></div>
+    <button onclick="reset()">RESET</button>
 </div>
 
 <script>
 const cvs = document.getElementById('cvs'), ctx = cvs.getContext('2d');
 let sel = null, curLv = 1, inventory = {}, sockets = [], cells = [], wires = [];
 
-// 端口：0上, 1右, 2下, 3左
+// 嚴格對齊 0上, 1右, 2下, 3左
 const LOGIC = {
     'L': (r) => [[0,1], [1,2], [2,3], [3,0]][r/90],
-    'T': (r) => [[3,1,2], [0,2,1], [1,3,0], [2,0,3]][r/90], // 0腳朝下, 90腳朝右, 180腳朝上, 270腳朝左
+    'T': (r) => [[3,2,1], [0,1,2], [3,0,1], [0,2,3]][r/90], // 0:┳, 90:┣, 180:┻, 270:┫
     'X': (r) => [0,1,2,3]
 };
 
@@ -58,7 +57,7 @@ const levels = {
         s: [{x:180,y:80},{x:80,y:180},{x:280,y:180}],
         c: [{x:30,y:180},{x:180,y:300},{x:330,y:180}],
         w: [
-            {f:[180,0], t:[180,80], power:true, pT:0, sid:0}, 
+            {f:[180,0], t:[180,80], power:true, pT:0, sid:0}, // 電力從上面進 s0 的 0
             {f:[180,80], t:[80,80], sid:0, pF:3}, {f:[80,80], t:[80,180], sid:1, pT:0},
             {f:[180,80], t:[280,80], sid:0, pF:1}, {f:[280,80], t:[280,180], sid:2, pT:0},
             {f:[180,80], t:[180,300], sid:0, pF:2},
@@ -66,16 +65,16 @@ const levels = {
             {f:[280,180], t:[330,180], sid:2, pF:1}
         ]
     },
-    2: { name: "STAGE 2: SIDE IN", goal: 3, inv: {L:4, T:1, X:1}, tag: {x:-10, y:195},
+    2: { name: "STAGE 2: SIDE IN", goal: 3, inv: {L:3, T:2, X:1}, tag: {x:-10, y:195},
         s: [{x:80,y:200},{x:180,y:200},{x:180,y:100}],
         c: [{x:180,y:300},{x:300,y:100},{x:300,y:200}],
         w: [
-            {f:[0,200], t:[80,200], power:true, pT:3, sid:0}, // 電力從左入 s0(3)
-            {f:[80,200], t:[180,200], sid:0, pF:1, pT:3, sidNext:1}, // s0(1) -> s1(3)
-            {f:[180,200], t:[180,300], sid:1, pF:2}, // s1(2) -> 出
-            {f:[180,200], t:[180,100], sid:1, pF:0, pT:2, sidNext:2}, // s1(0) -> s2(2)
-            {f:[180,100], t:[300,100], sid:2, pF:1}, // s2(1) -> 出
-            {f:[180,200], t:[300,200], sid:1, pF:1}  // s1(1) -> 出
+            {f:[0,200], t:[80,200], power:true, pT:3, sid:0}, // 電力從左面進 s0 的 3
+            {f:[80,200], t:[180,200], sid:0, pF:1, pT:3}, // s0(1) -> s1(3)
+            {f:[180,200], t:[180,300], sid:1, pF:2},
+            {f:[180,200], t:[180,100], sid:1, pF:0, pT:2}, // s1(0) -> s2(2)
+            {f:[180,100], t:[300,100], sid:2, pF:1},
+            {f:[180,200], t:[300,200], sid:1, pF:1}
         ]
     }
 };
@@ -90,7 +89,11 @@ function initStage(lv){
     levels[lv].s.forEach((p,i)=>{
         const d=document.createElement('div'); d.className='socket'; d.style.left=(p.x-22)+'px'; d.style.top=(p.y-22)+'px';
         const sObj={id:i, type:null, rot:0, el:d};
-        d.onclick=()=>{ if(!sObj.type && sel){ sObj.type=sel; inventory[sel]--; sel=null; } else if(sObj.type){ sObj.rot=(sObj.rot+90)%360; } update(); };
+        d.onclick=()=>{ 
+            if(!sObj.type && sel){ sObj.type=sel; inventory[sel]--; sel=null; document.querySelectorAll('.item').forEach(i=>i.classList.remove('active')); }
+            else if(sObj.type){ sObj.rot=(sObj.rot+90)%360; }
+            update();
+        };
         sockets.push(sObj); document.getElementById('board').appendChild(d);
     });
     levels[lv].c.forEach(p=>{
@@ -102,55 +105,52 @@ function initStage(lv){
 
 function update(){
     wires.forEach(w=>w.p=false);
-    let powS = new Set(), changed = true;
+    let poweredSockets = new Set(), changed = true;
+
     while(changed){
         changed = false;
         wires.forEach(w=>{
             if(w.p) return;
-            // 判定導線起點是否有電
-            let hasIn = w.power || wires.some(sw=>sw.p && Math.abs(sw.t[0]-w.f[0])<5 && Math.abs(sw.t[1]-w.f[1])<5);
-            if(hasIn){
-                const s = sockets[w.sid];
-                if(w.pT!==undefined){ // 導線要進入組件
-                    if(s.type && LOGIC[s.type](s.rot).includes(w.pT)){ w.p=true; powS.add(s.id); changed=true; }
-                } else if(w.pF!==undefined){ // 導線從組件發出
-                    if(s.type && powS.has(s.id) && LOGIC[s.type](s.rot).includes(w.pF)){ w.p=true; changed=true; }
-                } else { w.p=true; changed=true; } // 外部連線
+            // 電力入口判定
+            let hasInput = w.power || wires.some(sw=>sw.p && Math.abs(sw.t[0]-w.f[0])<2 && Math.abs(sw.t[1]-w.f[1])<2);
+            
+            if(hasInput){
+                if(w.pT !== undefined){ // 如果這條線是「進」插槽
+                    const s = sockets[w.sid];
+                    if(s.type && LOGIC[s.type](s.rot).includes(w.pT)){
+                        w.p = true; changed = true;
+                        poweredSockets.add(s.id);
+                    }
+                } else if(w.pF !== undefined){ // 如果這條線是「出」插槽
+                    const s = sockets[w.sid];
+                    if(s.type && poweredSockets.has(s.id) && LOGIC[s.type](s.rot).includes(w.pF)){
+                        w.p = true; changed = true;
+                    }
+                } else { // 外部純導線
+                    w.p = true; changed = true;
+                }
             }
         });
     }
+
     sockets.forEach(s=>{
         if(s.type){
             s.el.innerHTML=`<svg viewBox="0 0 40 40" style="transform:rotate(${s.rot}deg)">${getSVG(s.type)}</svg>`;
-            s.el.classList.toggle('powered', powS.has(s.id));
+            s.el.classList.toggle('powered', poweredSockets.has(s.id));
         }
     });
-    let lit = 0;
+    let litCount = 0;
     cells.forEach(c=>{
-        const on = wires.some(w=>w.p && Math.abs(w.t[0]-c.x)<10 && Math.abs(w.t[1]-c.y)<10);
-        c.el.classList.toggle('lit', on); if(on) lit++;
+        const isLit = wires.some(w=>w.p && Math.abs(w.t[0]-c.x)<5 && Math.abs(w.t[1]-c.y)<5);
+        c.el.classList.toggle('lit', isLit);
+        if(isLit) litCount++;
     });
-    document.getElementById('stat').innerText=`NODES: ${lit} / ${levels[curLv].goal}`;
-    document.getElementById('cL').innerText=`L:${inventory.L}`; document.getElementById('cT').innerText=`T:${inventory.T}`; document.getElementById('cX').innerText=`X:${inventory.X}`;
-    draw();
-    if(lit >= levels[curLv].goal && curLv < 2) setTimeout(()=>{ if(confirm("STAGE CLEAR! NEXT?")) initStage(2); }, 300);
-}
 
-function getSVG(t){
-    if(t==='L') return '<path d="M20 5 V20 H35" />';
-    if(t==='T') return '<path d="M5 20 H35 M20 20 V35" />';
-    if(t==='X') return '<path d="M5 20 H35 M20 5 V35" />';
-}
+    document.getElementById('stat').innerText = `NODES: ${litCount} / ${levels[curLv].goal}`;
+    document.getElementById('cL').innerText = inventory.L;
+    document.getElementById('cT').innerText = inventory.T;
+    document.getElementById('cX').innerText = inventory.X;
+    drawWires();
 
-function draw(){
-    ctx.clearRect(0,0,360,380);
-    wires.forEach(w=>{
-        ctx.beginPath(); ctx.moveTo(w.f[0],w.f[1]); ctx.lineTo(w.t[0],w.t[1]);
-        ctx.strokeStyle=w.p?'#3cf08d':'#1a251e'; ctx.lineWidth=w.p?4:2; ctx.stroke();
-    });
-}
-function reset(){ initStage(curLv); }
-initStage(1);
-</script>
-</body>
-</html>
+    if(litCount >= levels[curLv].goal && curLv < 2) {
+        setTimeout(()=>{ if(confirm("NEXT LEVEL?")) initStage(2); },
