@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>RE4 FINAL CALIBRATION</title>
+    <title>RE4 CIRCUIT FINAL</title>
     <style>
         :root {
             --re-green: #3cf08d;
-            --re-dim: #1a3a26;
+            --re-dim: #102a1a;
             --bg-black: #050806;
         }
 
@@ -19,192 +19,188 @@
             background-image: radial-gradient(circle, #0d1a12 0%, #000 100%);
         }
 
-        #terminal {
-            position: relative; width: 360px; height: 380px;
-            margin-top: 20px; border: 2px solid var(--re-dim);
-            background: rgba(0, 10, 5, 0.8);
+        #terminal-container {
+            position: relative; width: 360px; height: 400px;
+            margin-top: 30px; border: 3px solid #222;
+            background: #000; box-shadow: 0 0 20px rgba(0,0,0,0.5);
         }
 
+        /* 繪圖層 */
         canvas { position: absolute; top: 0; left: 0; z-index: 5; pointer-events: none; }
 
-        /* 符號按鈕樣式 */
-        .node {
-            position: absolute; width: 44px; height: 44px;
+        /* 工業風大按鈕 */
+        .knob {
+            position: absolute; width: 50px; height: 50px;
+            background: #111; border: 2px solid #333;
+            border-radius: 4px; z-index: 100;
             display: flex; justify-content: center; align-items: center;
-            z-index: 100; cursor: pointer; transition: transform 0.2s;
-            -webkit-tap-highlight-color: transparent;
+            box-shadow: 0 4px 0 #000; transition: transform 0.2s, background 0.3s;
+            cursor: pointer; -webkit-tap-highlight-color: transparent;
+        }
+        .knob:active { transform: scale(0.9) !important; background: #222; }
+        
+        /* 符號視覺 */
+        .knob svg { width: 35px; height: 35px; fill: none; stroke: #444; stroke-width: 4; transition: 0.3s; }
+        .knob.powered svg { stroke: var(--re-green); filter: drop-shadow(0 0 8px var(--re-green)); }
+        .knob.powered { border-color: var(--re-green); box-shadow: 0 0 15px rgba(60, 240, 141, 0.3); }
+
+        /* 固定電源點 */
+        .fixed-node {
+            position: absolute; width: 24px; height: 24px;
+            background: #0a0a0a; border: 2px solid #222;
+            border-radius: 4px; z-index: 50; display: flex; 
+            justify-content: center; align-items: center;
+        }
+        .fixed-node.active {
+            background: var(--re-green); border-color: #fff;
+            box-shadow: 0 0 20px var(--re-green);
         }
 
-        .node svg { width: 32px; height: 32px; fill: none; stroke: var(--re-dim); stroke-width: 3; }
-        .node.on svg { stroke: var(--re-green); filter: drop-shadow(0 0 8px var(--re-green)); }
-
-        /* 目標電源點 */
-        .power-goal {
-            position: absolute; width: 20px; height: 20px;
-            border: 2px solid var(--re-dim); border-radius: 50%;
-            display: flex; justify-content: center; align-items: center; z-index: 10;
-        }
-        .power-goal::after { content: '⚡'; font-size: 10px; opacity: 0.3; }
-        .power-goal.active { border-color: #fff; box-shadow: 0 0 15px var(--re-green); background: var(--re-green); }
-        .power-goal.active::after { opacity: 1; color: #000; }
-
-        .power-tag { position: absolute; top: 15px; left: 15px; border: 1px solid var(--re-green); padding: 3px 8px; font-size: 12px; z-index: 20; }
-        .counter { position: absolute; top: 15px; right: 15px; font-size: 14px; }
+        .ui-label { position: absolute; padding: 5px 10px; font-weight: bold; font-size: 14px; z-index: 10; }
+        #power-in { top: 10px; left: 10px; border: 1px solid var(--re-green); }
+        #goal-stat { top: 10px; right: 10px; color: #fff; }
     </style>
 </head>
 <body>
 
-    <div id="terminal">
-        <div class="power-tag" id="main-power">POWER ▶▶</div>
-        <div class="counter" id="status">0 / 4</div>
-        <canvas id="circuitCanvas" width="360" height="380"></canvas>
+    <div id="terminal-container">
+        <div class="ui-label" id="power-in">POWER >></div>
+        <div class="ui-label" id="goal-stat">CONNECTED: 0 / 3</div>
+        <canvas id="mainCanvas" width="360" height="400"></canvas>
     </div>
 
-    <div style="margin-top:20px; font-size:12px; color:var(--re-dim);">INSUFFICIENT POWER. CALIBRATION REQUIRED.</div>
+    <div style="margin-top:30px; text-align:center;">
+        <div style="font-size:14px; letter-spacing:2px;">TERMINAL CALIBRATION</div>
+        <div style="font-size:10px; color:#444; margin-top:5px;">ROTATE CONNECTORS TO LINK ALL POWER CELLS</div>
+    </div>
 
 <script>
-    const canvas = document.getElementById('circuitCanvas');
+    const canvas = document.getElementById('mainCanvas');
     const ctx = canvas.getContext('2d');
-    const statusEl = document.getElementById('status');
+    const container = document.getElementById('terminal-container');
 
-    // 定義方形電圈 (由外到內)
-    const layers = [140, 100, 60, 20]; // 每個方形的半徑
-    const nodes = [];
-    const goals = [
-        { x: 180, y: 80,  layer: 1, active: false },
-        { x: 280, y: 190, layer: 0, active: false },
-        { x: 180, y: 300, layer: 2, active: false },
-        { x: 80,  y: 190, layer: 1, active: false }
-    ];
+    const rings = [140, 95, 50]; // 三層方形軌道半徑
+    const knobs = [];
+    const cells = [];
 
-    // 初始化節點 (放置在每一圈的十字交會點)
-    function initNodes() {
-        const types = ['T', 'L', 'CROSS', 'T', 'L', 'T', 'L', 'CROSS'];
-        let id = 0;
-        for (let l = 0; l < 3; l++) { // 3層可轉向節點
-            const dist = layers[l];
+    // 初始化數據
+    function init() {
+        // 1. 生成軌道上的按鈕 (避開轉角)
+        // 每層放兩個按鈕，分別在水平和垂直中點
+        rings.forEach((r, i) => {
             const positions = [
-                {x: 180, y: 190-dist, d: 'N'}, {x: 180+dist, y: 190, d: 'E'},
-                {x: 180, y: 190+dist, d: 'S'}, {x: 180-dist, y: 190, d: 'W'}
+                {x: 180, y: 200-r, type: 'T'}, // 上軌道中點
+                {x: 180+r, y: 200, type: 'L'}  // 右軌道中點
             ];
-            positions.forEach(p => {
-                const node = {
-                    id: id++, x: p.x, y: p.y, layer: l,
-                    type: types[id % types.length],
-                    rot: Math.floor(Math.random() * 4) * 90,
-                    powered: false
+            positions.forEach(pos => {
+                const knob = {
+                    x: pos.x, y: pos.y, type: pos.type,
+                    rot: Math.floor(Math.random()*4)*90,
+                    powered: false, layer: i
                 };
-                createNodeElement(node);
-                nodes.push(node);
+                createKnob(knob);
+                knobs.push(knob);
             });
-        }
-    }
 
-    function createNodeElement(node) {
-        const div = document.createElement('div');
-        div.className = 'node';
-        div.style.left = (node.x - 22) + 'px';
-        div.style.top = (node.y - 22) + 'px';
-        div.style.transform = `rotate(${node.rot}deg)`;
-        div.innerHTML = `<svg viewBox="0 0 40 40">${getSVGPath(node.type)}</svg>`;
-        div.onclick = () => {
-            node.rot = (node.rot + 90) % 360;
-            div.style.transform = `rotate(${node.rot}deg)`;
-            if (window.navigator.vibrate) window.navigator.vibrate(20);
-            updateGame();
-        };
-        node.el = div;
-        document.getElementById('terminal').appendChild(div);
-    }
-
-    function getSVGPath(type) {
-        if(type === 'L') return '<path d="M20 0 V20 H40" />';
-        if(type === 'T') return '<path d="M0 20 H40 M20 20 V0" />';
-        return '<path d="M20 0 V40 M0 20 H40" />'; // CROSS
-    }
-
-    function drawBaseGrid() {
-        ctx.clearRect(0, 0, 360, 380);
-        ctx.setLineDash([5, 5]);
-        ctx.strokeStyle = '#1a3a26';
-        ctx.lineWidth = 1;
-
-        layers.forEach(r => {
-            ctx.strokeRect(180 - r, 190 - r, r * 2, r * 2);
+            // 2. 生成固定的電源點 (放在每層的轉角處或特定位置)
+            const cell = {
+                x: 180-r, y: 200+r, active: false, layer: i
+            };
+            createCell(cell);
+            cells.push(cell);
         });
 
-        // 畫十字連接線
-        ctx.beginPath();
-        ctx.moveTo(180, 50); ctx.lineTo(180, 330);
-        ctx.moveTo(40, 190); ctx.lineTo(320, 190);
-        ctx.stroke();
+        requestAnimationFrame(render);
+        updateLogic();
     }
 
-    function updateGame() {
-        // 核心邏輯：從左上角 POWER (15, 15) 開始傳導
-        // 為了簡化，我們模擬電力從最外圈順時針流動
-        nodes.forEach(n => n.powered = false);
+    function createKnob(k) {
+        const el = document.createElement('div');
+        el.className = 'knob';
+        el.style.left = (k.x - 25) + 'px';
+        el.style.top = (k.y - 25) + 'px';
+        el.style.transform = `rotate(${k.rot}deg)`;
+        el.innerHTML = `<svg viewBox="0 0 40 40">${k.type === 'T' ? '<path d="M0 20 H40 M20 20 V0" />' : '<path d="M20 0 V20 H40" />'}</svg>`;
         
-        // 模擬傳導算式：根據旋轉角度決定電力是否進入下一層
-        let powerLevel = 0;
-        nodes.forEach(n => {
-            // 如果是 T 或 CROSS 且角度對準，則設為 powered
-            if (n.rot % 180 === 0) n.powered = true;
-            n.el.classList.toggle('on', n.powered);
-        });
-
-        // 更新目標點
-        let activeGoals = 0;
-        goals.forEach((g, i) => {
-            // 檢查目標所在的圈層節點是否通電
-            const relatedNode = nodes.find(n => n.layer === g.layer && n.powered);
-            g.active = !!relatedNode;
-            const el = document.getElementById(`goal-${i}`);
-            el.classList.toggle('active', g.active);
-            if(g.active) activeGoals++;
-        });
-
-        statusEl.innerText = `${activeGoals} / 4`;
-        drawCurrent();
+        el.onclick = () => {
+            k.rot = (k.rot + 90) % 360;
+            el.style.transform = `rotate(${k.rot}deg)`;
+            if(window.navigator.vibrate) window.navigator.vibrate(30);
+            updateLogic();
+        };
+        k.el = el;
+        container.appendChild(el);
     }
 
-    function drawCurrent() {
-        drawBaseGrid();
-        ctx.setLineDash([]);
-        ctx.strokeStyle = '#3cf08d';
-        ctx.lineWidth = 3;
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = '#3cf08d';
+    function createCell(c) {
+        const el = document.createElement('div');
+        el.className = 'fixed-node';
+        el.style.left = (c.x - 12) + 'px';
+        el.style.top = (c.y - 12) + 'px';
+        c.el = el;
+        container.appendChild(el);
+    }
 
-        // 從 POWER 標籤引出一條線
-        ctx.beginPath();
-        ctx.moveTo(75, 25); ctx.lineTo(180 - layers[0], 25); 
-        ctx.lineTo(180 - layers[0], 190 - layers[0]);
-        ctx.stroke();
+    function updateLogic() {
+        // 模擬電力傳導邏輯
+        // 電力從最外層開始，如果按鈕轉向正確，則點亮該層
+        let layerPowered = [true, false, false]; 
+        
+        knobs.forEach(k => {
+            // 簡化邏輯：如果 T 型向上或向下(視角度)，則傳導到下一層
+            if(k.layer === 0 && k.rot % 180 === 0) layerPowered[1] = true;
+            if(k.layer === 1 && k.rot % 180 === 0) layerPowered[2] = true;
+            k.powered = layerPowered[k.layer];
+            k.el.classList.toggle('powered', k.powered);
+        });
 
-        // 根據通電節點畫出發光方形
-        nodes.forEach(n => {
-            if(n.powered) {
-                const r = layers[n.layer];
-                ctx.strokeRect(180 - r, 190 - r, r * 2, r * 2);
+        let activeCount = 0;
+        cells.forEach(c => {
+            c.active = layerPowered[c.layer];
+            c.el.classList.toggle('active', c.active);
+            if(c.active) activeCount++;
+        });
+
+        document.getElementById('goal-stat').innerText = `CONNECTED: ${activeCount} / 3`;
+    }
+
+    function render() {
+        ctx.clearRect(0, 0, 360, 400);
+
+        // 繪製背景虛線軌道
+        rings.forEach((r, i) => {
+            ctx.setLineDash([5, 5]);
+            ctx.strokeStyle = varColor('--re-dim');
+            ctx.lineWidth = 2;
+            ctx.strokeRect(180-r, 200-r, r*2, r*2);
+
+            // 如果該層通電，繪製發光實線
+            const isPowered = knobs.some(k => k.layer === i && k.powered);
+            if(isPowered) {
+                ctx.setLineDash([]);
+                ctx.strokeStyle = varColor('--re-green');
+                ctx.lineWidth = 4;
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = varColor('--re-green');
+                ctx.strokeRect(180-r, 200-r, r*2, r*2);
+                ctx.shadowBlur = 0;
             }
         });
+
+        // 畫出電力來源線
+        ctx.setLineDash([]);
+        ctx.strokeStyle = varColor('--re-green');
+        ctx.beginPath();
+        ctx.moveTo(85, 25); ctx.lineTo(180-rings[0], 25);
+        ctx.lineTo(180-rings[0], 200-rings[0]);
+        ctx.stroke();
+
+        requestAnimationFrame(render);
     }
 
-    function initGoals() {
-        goals.forEach((g, i) => {
-            const div = document.createElement('div');
-            div.className = 'power-goal';
-            div.id = `goal-${i}`;
-            div.style.left = (g.x - 10) + 'px';
-            div.style.top = (g.y - 10) + 'px';
-            document.getElementById('terminal').appendChild(div);
-        });
-    }
+    function varColor(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
 
-    initNodes();
-    initGoals();
-    updateGame();
+    init();
 </script>
 </body>
 </html>
