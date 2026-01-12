@@ -2,83 +2,103 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>電路維修 - 原始佈線還原</title>
+    <title>電路維修系統 - 佈線與方格</title>
     <style>
-        body { background: #0a0a0a; color: #eee; text-align: center; font-family: sans-serif; }
-        canvas { background: #ffffff; border: 5px solid #333; margin-top: 20px; }
+        body { background: #080808; color: #00ffcc; text-align: center; font-family: sans-serif; }
+        canvas { background: #000; cursor: pointer; border: 2px solid #333; margin-top: 20px; }
     </style>
 </head>
 <body>
 
-    <h2>原始電線佈局測試 (還原 未命名-2.jpg)</h2>
-    <canvas id="gameCanvas" width="850" height="850"></canvas>
+    <h2 style="color:#00ffcc">電路佈線測試 (Step 2: 16 個方格)</h2>
+    <canvas id="gameCanvas" width="800" height="800"></canvas>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
+        const center = 400;
 
-        function drawOriginalCircuit() {
+        // 定義 16 個方格的位置 (根據 未命名-1.jpg 分佈)
+        const nodes = [
+            // 垂直軸 (6個)
+            { x: center, y: 150, type: 'T' }, 
+            { x: center, y: 230, type: 'T' },
+            { x: center, y: 310, type: 'T' },
+            { x: center, y: 490, type: 'D' }, // 黃色特殊位置預留
+            { x: center, y: 570, type: 'T' },
+            { x: center, y: 650, type: 'T' },
+            // 水平軸 (8個，中心綠燈兩側)
+            { x: 160, y: center, type: 'T' }, { x: 240, y: center, type: 'D' },
+            { x: 320, y: center, type: 'T' }, { x: 360, y: center, type: 'T' },
+            { x: 440, y: center, type: 'L' }, { x: 480, y: center, type: 'D' },
+            { x: 560, y: center, type: 'T' }, { x: 640, y: center, type: 'T' },
+            // 外部連接點
+            { x: 560, y: 480, type: 'L' }, { x: 640, y: 480, type: 'T' }
+        ];
+
+        function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 1. 繪製左上角電池 (黑色方塊)
-            ctx.fillStyle = "#263238";
-            ctx.fillRect(50, 20, 180, 80);
+            // 1. 畫電池 (左上角)
+            ctx.fillStyle = "#1a1a1a";
+            ctx.fillRect(40, 20, 160, 60);
+            ctx.strokeStyle = "#00ffcc";
+            ctx.strokeRect(40, 20, 160, 60);
 
-            // 設置虛線樣式 (未通電狀態)
+            // 2. 畫原始虛線路徑 (未通電)
             ctx.strokeStyle = "#333";
-            ctx.setLineDash([6, 6]);
-            ctx.lineWidth = 3;
+            ctx.setLineDash([5, 8]);
+            ctx.lineWidth = 2;
 
-            // 2. 繪製電池引出的主幹線
+            // 電池引線
             ctx.beginPath();
-            ctx.moveTo(230, 60);  // 電池右側
-            ctx.lineTo(450, 60);  // 向右
-            ctx.lineTo(450, 300); // 向下進入電網
+            ctx.moveTo(200, 50); ctx.lineTo(center, 50); ctx.lineTo(center, 150);
             ctx.stroke();
 
-            // 3. 繪製嵌套的正方形電網 (根據圖片位置手動定義座標)
-            const squares = [
-                {x: 350, y: 350, w: 100, h: 100}, // 最內層
-                {x: 300, y: 300, w: 250, h: 250}, // 中內層
-                {x: 200, y: 250, w: 400, h: 400}, // 中外層
-                {x: 100, y: 550, w: 650, h: 200}  // 底部大長方形
-            ];
-
-            squares.forEach(s => {
-                ctx.strokeRect(s.x, s.y, s.w, s.h);
+            // 嵌套方框
+            const rects = [80, 160, 240];
+            rects.forEach(r => {
+                ctx.strokeRect(center - r, center - r, r * 2, r * 2);
             });
 
-            // 4. 繪製交錯的垂直與水平連通線
+            // 十字軸線
             ctx.beginPath();
-            // 左側長垂直線
-            ctx.moveTo(100, 550); ctx.lineTo(100, 750);
-            // 右側連接線
-            ctx.moveTo(750, 100); ctx.lineTo(750, 750);
-            ctx.moveTo(550, 100); ctx.lineTo(750, 100);
-            // 橫向貫穿線
-            ctx.moveTo(100, 650); ctx.lineTo(750, 650);
+            ctx.moveTo(center, 50); ctx.lineTo(center, 700); // 垂直
+            ctx.moveTo(100, center); ctx.lineTo(700, center); // 水平
             ctx.stroke();
 
-            // 5. 繪製 6 個綠色電源點 (圓圈)
-            ctx.setLineDash([]); // 圓圈用實線
-            ctx.strokeStyle = "#4CAF50";
-            const targets = [
-                {x: 450, y: 400}, // 中心
-                {x: 380, y: 350}, // 中心偏左上
-                {x: 750, y: 100}, // 右上角
-                {x: 650, y: 200}, // 中右
-                {x: 600, y: 650}, // 下右
-                {x: 100, y: 750}  // 左下角
-            ];
+            // 3. 畫 16 個紅色方格
+            ctx.setLineDash([]);
+            nodes.forEach(n => {
+                ctx.strokeStyle = "red";
+                ctx.lineWidth = 1.5;
+                ctx.strokeRect(n.x - 20, n.y - 20, 40, 40);
 
-            targets.forEach(t => {
+                // 畫內部符號 (測試用，先畫簡易線條)
+                ctx.strokeStyle = n.type === 'D' ? "#ffff00" : "#0099ff";
+                ctx.lineWidth = 3;
                 ctx.beginPath();
-                ctx.arc(t.x, t.y, 22, 0, Math.PI * 2);
+                if (n.type === 'T') {
+                    ctx.moveTo(n.x - 15, n.y); ctx.lineTo(n.x + 15, n.y);
+                    ctx.moveTo(n.x, n.y); ctx.lineTo(n.x, n.y + 15);
+                } else if (n.type === 'D') {
+                    // 黃色特殊件 (雙弧)
+                    ctx.arc(n.x - 15, n.y - 15, 15, 0, Math.PI/2);
+                    ctx.moveTo(n.x + 15, n.y + 15);
+                    ctx.arc(n.x + 15, n.y + 15, 15, Math.PI, Math.PI * 1.5);
+                }
                 ctx.stroke();
+            });
+
+            // 4. 畫中心與外圍電源 (綠圈)
+            ctx.strokeStyle = "#00ffcc";
+            const targets = [{x:center, y:center}, {x:680, y:120}, {x:600, y:200}, {x:120, y:680}];
+            targets.forEach(t => {
+                ctx.beginPath(); ctx.arc(t.x, t.y, 20, 0, Math.PI*2); ctx.stroke();
             });
         }
 
-        drawOriginalCircuit();
+        draw();
     </script>
 </body>
 </html>
