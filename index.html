@@ -1,17 +1,17 @@
+
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>電路維修 - 終極地圖還原</title>
+    <title>電路維修 - 電源精確對齊版</title>
     <style>
         body { background: #050505; color: #eee; text-align: center; font-family: sans-serif; }
         canvas { background: #000; border: 2px solid #333; margin-top: 10px; }
-        .hint { color: #555; font-size: 12px; margin: 5px; }
     </style>
 </head>
 <body>
+    <h3 style="color:#00ffcc">電源點座標校正：全部對齊線路</h3>
     <canvas id="gameCanvas" width="800" height="850"></canvas>
-    <div class="hint">參照 未命名-2.jpg 與 未命名-1.jpg 繪製</div>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
@@ -20,72 +20,71 @@
         function drawMap() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 1. 左上角電池 (根據 未命名-2.jpg)
+            // 1. 左上角電池
             ctx.fillStyle = "#1a1a1a";
             ctx.fillRect(50, 20, 150, 70);
             ctx.strokeStyle = "#00ffcc";
             ctx.lineWidth = 2;
             ctx.strokeRect(50, 20, 150, 70);
 
-            // 2. 佈線樣式：通電前全為灰色虛線
+            // 2. 電線佈局 (灰色虛線)
             ctx.strokeStyle = "#444";
             ctx.setLineDash([5, 8]);
-            ctx.lineWidth = 2;
+            
+            // 定義座標常量，確保對齊
+            const L1 = 100, L2 = 200, L3 = 300; // 左側線座標
+            const R1 = 750, R2 = 650, R3 = 550; // 右側線座標
+            const T1 = 100, T2 = 200, T3 = 300; // 頂部線座標
+            const B1 = 750, B2 = 650, B3 = 550; // 底部線座標
+            const CX = 450, CY = 425;           // 十字中心點
 
-            // --- 繪製不規則嵌套電線 ---
             ctx.beginPath();
-            // 電池引線：右轉向下
-            ctx.moveTo(200, 55); ctx.lineTo(450, 55); ctx.lineTo(450, 300);
+            // 引線
+            ctx.moveTo(200, 55); ctx.lineTo(CX, 55); ctx.lineTo(CX, T1);
 
-            // 最外層大框 (不對稱)
-            ctx.strokeRect(100, 100, 650, 650);
+            // 三層方框 (手動繪製以確保路徑清晰)
+            ctx.strokeRect(L1, T1, R1-L1, B1-T1); // 外框 (100,100) 到 (750,750)
+            ctx.strokeRect(L2, T2, R2-L2, B2-T2); // 中框 (200,200) 到 (650,650)
+            ctx.strokeRect(L3, T3, R3-L3, B3-T3); // 內框 (300,300) 到 (550,550)
 
-            // 第二層中框
-            ctx.strokeRect(200, 200, 450, 450);
-
-            // 第三層內框 (偏左下)
-            ctx.strokeRect(300, 300, 250, 250);
-
-            // 垂直十字軸線 (非中心)
-            ctx.moveTo(450, 55); ctx.lineTo(450, 750);
-            // 水平十字軸線
-            ctx.moveTo(100, 425); ctx.lineTo(750, 425);
-
-            // 底部長連接線
-            ctx.moveTo(100, 750); ctx.lineTo(750, 750);
+            // 十字軸
+            ctx.moveTo(CX, 55); ctx.lineTo(CX, B1); // 垂直
+            ctx.moveTo(L1, CY); ctx.lineTo(R1, CY); // 水平
             ctx.stroke();
 
-            // 3. 繪製 6 個目標電源 (綠色圓圈)
+            // 3. 繪製 6 個目標電源 (精確對齊線路交點)
             ctx.setLineDash([]);
             const targets = [
-                {x: 450, y: 425}, // 正中心
-                {x: 750, y: 100}, // 右上
-                {x: 700, y: 250}, // 中右
-                {x: 350, y: 350}, // 中偏左上
-                {x: 600, y: 650}, // 下右
-                {x: 100, y: 750}  // 左下
+                {x: CX, y: CY},      // 1. 正中心交點
+                {x: R1, y: T1},      // 2. 最外框右上角
+                {x: R2, y: T2 + 50}, // 3. 中框右側邊緣
+                {x: L3 + 50, y: T3}, // 4. 內框頂部邊緣
+                {x: R2 - 50, y: B2}, // 5. 中框底部邊緣
+                {x: L1, y: B1}       // 6. 最外框左下角
             ];
+
             targets.forEach(t => {
                 ctx.strokeStyle = "#00ffcc";
-                ctx.beginPath(); ctx.arc(t.x, t.y, 22, 0, Math.PI*2); ctx.stroke();
+                ctx.lineWidth = 2;
+                ctx.beginPath(); 
+                ctx.arc(t.x, t.y, 22, 0, Math.PI*2); 
+                ctx.stroke();
+                // 畫內部的小圓點
+                ctx.beginPath(); ctx.arc(t.x, t.y, 5, 0, Math.PI*2); ctx.fill();
             });
 
-            // 4. 放置 16 個紅色方格 (依據 未命名-1.jpg)
+            // 4. 放置紅色方格 (暫時維持位置，確保在線上)
             const nodes = [
-                {x: 450, y: 100}, {x: 450, y: 200}, {x: 450, y: 300}, {x: 450, y: 550}, {x: 450, y: 650}, {x: 450, y: 750}, // 垂直軸
-                {x: 100, y: 425}, {x: 200, y: 425}, {x: 300, y: 425}, {x: 550, y: 425}, {x: 650, y: 425}, {x: 750, y: 425}, // 水平軸
-                {x: 350, y: 425}, {x: 450, y: 500}, {x: 200, y: 200}, {x: 650, y: 650} // 轉折點
+                {x: CX, y: 150}, {x: CX, y: 250}, {x: CX, y: 350}, {x: CX, y: 500}, {x: CX, y: 600}, {x: CX, y: 700},
+                {x: 150, y: CY}, {x: 250, y: CY}, {x: 350, y: CY}, {x: 500, y: CY}, {x: 600, y: CY}, {x: 700, y: CY}
             ];
             nodes.forEach(n => {
                 ctx.strokeStyle = "red";
                 ctx.strokeRect(n.x - 25, n.y - 25, 50, 50);
-                // 畫內部符號 (這裡先簡單模擬 T 型與黃色雙向)
-                ctx.strokeStyle = "#0099ff";
-                ctx.beginPath(); ctx.moveTo(n.x - 15, n.y); ctx.lineTo(n.x + 15, n.y); ctx.stroke();
             });
         }
 
         drawMap();
     </script>
 </body>
-</html
+</html>
