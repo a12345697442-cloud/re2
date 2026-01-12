@@ -2,132 +2,75 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>電路維修系統 - 嵌套路徑版</title>
+    <title>電路維修 - 第一步：佈線測試</title>
     <style>
-        body { background: #080808; color: #00ffcc; text-align: center; font-family: 'Segoe UI', Tahoma, sans-serif; margin: 0; }
-        canvas { background: #000; cursor: pointer; border: 3px solid #004433; margin-top: 20px; box-shadow: 0 0 25px #002211; }
-        .info { margin: 15px; font-size: 1.1em; letter-spacing: 1px; }
+        body { background: #0a0a0a; color: #00ffcc; text-align: center; font-family: monospace; }
+        canvas { background: #000; border: 2px solid #333; margin-top: 30px; }
+        .hint { margin: 10px; color: #666; }
     </style>
 </head>
 <body>
 
-    <div class="info">SYSTEM STATUS: <span id="power-count">0</span> / 6 NODES ONLINE</div>
-    <canvas id="gameCanvas" width="850" height="850"></canvas>
+    <h2>電路圖佈線測試</h2>
+    <div class="hint">這是模仿 (未命名-2.jpg) 的初始虛線路徑</div>
+    <canvas id="gameCanvas" width="800" height="800"></canvas>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
+        const center = 400; // 中心點
 
-        // 座標定義 (基於 未命名-2.jpg 的回字型結構)
-        const center = { x: 425, y: 425 };
-        const layers = [60, 140, 220, 300]; // 回字型的四層半徑
-
-        // 16 個以內的操作方格節點
-        let nodes = [
-            { x: 425, y: 125, type: 'T', rot: 2, powered: false }, // 頂部入口
-            { x: 425, y: 225, type: 'T', rot: 0, powered: false },
-            { x: 425, y: 325, type: 'D', rot: 0, powered: false, isYellow: true }, // 黃色特殊件
-            { x: 525, y: 425, type: 'L', rot: 1, powered: false },
-            { x: 325, y: 425, type: 'T', rot: 3, powered: false },
-            { x: 425, y: 525, type: 'T', rot: 0, powered: false },
-            { x: 425, y: 625, type: 'L', rot: 2, powered: false },
-            // 你可以依照 1.jpg 的分佈繼續增加節點...
-        ];
-
-        // 原始背景線路 (未命名-2.jpg 中的虛線段)
-        const wires = [
-            { x1: 425, y1: 50, x2: 425, y2: 100, isBattery: true }, // 電池引線
-            { x1: 425, y1: 150, x2: 425, y2: 200 },
-            { x1: 425, y1: 250, x2: 425, y2: 300 },
-            { x1: 425, y1: 350, x2: 425, y2: 400 },
-            // 回字型框架線路
-            { x1: 200, y1: 200, x2: 650, y2: 200 }, // 上橫線
-            { x1: 200, y1: 200, x2: 200, y2: 650 }, // 左直線
-            { x1: 650, y1: 200, x2: 650, y2: 650 }, // 右直線
-            { x1: 200, y1: 650, x2: 650, y2: 650 }, // 下橫線
-        ];
-
-        function draw() {
+        function drawCircuit() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 1. 畫電池 (上方黑框)
+            // 1. 繪製電池 (頂部黑色方塊)
             ctx.fillStyle = "#1a1a1a";
-            ctx.fillRect(375, 10, 100, 40);
             ctx.strokeStyle = "#00ffcc";
-            ctx.strokeRect(375, 10, 100, 40);
+            ctx.lineWidth = 2;
+            ctx.fillRect(center - 50, 20, 100, 40);
+            ctx.strokeRect(center - 50, 20, 100, 40);
 
-            // 2. 畫背景電線
-            wires.forEach(w => {
+            // 2. 設置電線樣式 (未連通前的虛線)
+            ctx.strokeStyle = "#333333"; // 深灰色
+            ctx.setLineDash([5, 10]);    // 虛線樣式
+            ctx.lineWidth = 2;
+
+            // 3. 繪製嵌套的回字型線路
+            const layers = [80, 160, 240, 320]; // 四層嵌套半徑
+            
+            layers.forEach(r => {
                 ctx.beginPath();
-                ctx.lineWidth = 3;
-                if (w.isBattery) { // 電池出來的線永遠是實的
-                    ctx.setLineDash([]);
-                    ctx.strokeStyle = "#00ffcc";
-                } else {
-                    ctx.setLineDash([5, 8]); // 未通電前是虛線
-                    ctx.strokeStyle = "#2a2a2a";
-                }
-                ctx.moveTo(w.x1, w.y1);
-                ctx.lineTo(w.x2, w.y2);
+                // 畫正方形方框
+                ctx.strokeRect(center - r, center - r, r * 2, r * 2);
+            });
+
+            // 4. 繪製連接各層的垂直與水平十字線
+            ctx.beginPath();
+            // 垂直中心線 (由電池引出)
+            ctx.moveTo(center, 60);
+            ctx.lineTo(center, center + 320);
+            // 水平中心線
+            ctx.moveTo(center - 320, center);
+            ctx.lineTo(center + 320, center);
+            ctx.stroke();
+
+            // 5. 繪製 4 個電源目標位置 (圓圈)
+            ctx.setLineDash([]); // 圓圈用實線標示位置
+            const targets = [
+                {x: center, y: center},             // 中心
+                {x: center + 240, y: center - 160}, // 右上
+                {x: center - 240, y: center + 160}, // 左下
+                {x: center + 320, y: center + 80}   // 右側
+            ];
+
+            targets.forEach(t => {
+                ctx.beginPath();
+                ctx.arc(t.x, t.y, 15, 0, Math.PI * 2);
                 ctx.stroke();
             });
-
-            // 3. 畫 16 個以內的操作方格
-            nodes.forEach(n => {
-                ctx.setLineDash([]);
-                ctx.strokeStyle = "red";
-                ctx.lineWidth = 1;
-                ctx.strokeRect(n.x - 28, n.y - 28, 56, 56);
-
-                ctx.save();
-                ctx.translate(n.x, n.y);
-                ctx.rotate(n.rot * Math.PI / 2);
-                drawSymbol(n);
-                ctx.restore();
-            });
-
-            // 4. 畫中心電源與周邊電源
-            drawTarget(425, 425, true); // 中心主電源
         }
 
-        function drawSymbol(n) {
-            ctx.lineWidth = 4;
-            ctx.strokeStyle = n.isYellow ? "#e6b800" : "#0099ff";
-            const s = 22;
-            if (n.type === 'T') {
-                ctx.beginPath(); ctx.moveTo(-s, 0); ctx.lineTo(s, 0); ctx.moveTo(0, 0); ctx.lineTo(0, s); ctx.stroke();
-            } else if (n.type === 'L') {
-                ctx.beginPath(); ctx.moveTo(0, -s); ctx.lineTo(0, 0); ctx.lineTo(s, 0); ctx.stroke();
-            } else if (n.type === 'D') { // 黃色特殊雙彎道
-                ctx.beginPath(); ctx.arc(-s, -s, s, 0, Math.PI/2); ctx.stroke();
-                ctx.beginPath(); ctx.arc(s, s, s, Math.PI, Math.PI*1.5); ctx.stroke();
-            }
-        }
-
-        function drawTarget(x, y, active) {
-            ctx.setLineDash([]);
-            ctx.strokeStyle = "#00ffcc";
-            ctx.fillStyle = active ? "#00ff00" : "#111";
-            ctx.beginPath();
-            ctx.arc(x, y, 20, 0, Math.PI*2);
-            ctx.fill();
-            ctx.stroke();
-        }
-
-        canvas.addEventListener('mousedown', (e) => {
-            const rect = canvas.getBoundingClientRect();
-            const mx = e.clientX - rect.left;
-            const my = e.clientY - rect.top;
-
-            nodes.forEach(n => {
-                if (mx > n.x - 28 && mx < n.x + 28 && my > n.y - 28 && my < n.y + 28) {
-                    n.rot = (n.rot + 1) % 4;
-                    draw();
-                }
-            });
-        });
-
-        draw();
+        drawCircuit();
     </script>
 </body>
 </html>
