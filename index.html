@@ -2,75 +2,83 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>電路維修 - 第一步：佈線測試</title>
+    <title>電路維修 - 原始佈線還原</title>
     <style>
-        body { background: #0a0a0a; color: #00ffcc; text-align: center; font-family: monospace; }
-        canvas { background: #000; border: 2px solid #333; margin-top: 30px; }
-        .hint { margin: 10px; color: #666; }
+        body { background: #0a0a0a; color: #eee; text-align: center; font-family: sans-serif; }
+        canvas { background: #ffffff; border: 5px solid #333; margin-top: 20px; }
     </style>
 </head>
 <body>
 
-    <h2>電路圖佈線測試</h2>
-    <div class="hint">這是模仿 (未命名-2.jpg) 的初始虛線路徑</div>
-    <canvas id="gameCanvas" width="800" height="800"></canvas>
+    <h2>原始電線佈局測試 (還原 未命名-2.jpg)</h2>
+    <canvas id="gameCanvas" width="850" height="850"></canvas>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        const center = 400; // 中心點
 
-        function drawCircuit() {
+        function drawOriginalCircuit() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 1. 繪製電池 (頂部黑色方塊)
-            ctx.fillStyle = "#1a1a1a";
-            ctx.strokeStyle = "#00ffcc";
-            ctx.lineWidth = 2;
-            ctx.fillRect(center - 50, 20, 100, 40);
-            ctx.strokeRect(center - 50, 20, 100, 40);
+            // 1. 繪製左上角電池 (黑色方塊)
+            ctx.fillStyle = "#263238";
+            ctx.fillRect(50, 20, 180, 80);
 
-            // 2. 設置電線樣式 (未連通前的虛線)
-            ctx.strokeStyle = "#333333"; // 深灰色
-            ctx.setLineDash([5, 10]);    // 虛線樣式
-            ctx.lineWidth = 2;
+            // 設置虛線樣式 (未通電狀態)
+            ctx.strokeStyle = "#333";
+            ctx.setLineDash([6, 6]);
+            ctx.lineWidth = 3;
 
-            // 3. 繪製嵌套的回字型線路
-            const layers = [80, 160, 240, 320]; // 四層嵌套半徑
-            
-            layers.forEach(r => {
-                ctx.beginPath();
-                // 畫正方形方框
-                ctx.strokeRect(center - r, center - r, r * 2, r * 2);
-            });
-
-            // 4. 繪製連接各層的垂直與水平十字線
+            // 2. 繪製電池引出的主幹線
             ctx.beginPath();
-            // 垂直中心線 (由電池引出)
-            ctx.moveTo(center, 60);
-            ctx.lineTo(center, center + 320);
-            // 水平中心線
-            ctx.moveTo(center - 320, center);
-            ctx.lineTo(center + 320, center);
+            ctx.moveTo(230, 60);  // 電池右側
+            ctx.lineTo(450, 60);  // 向右
+            ctx.lineTo(450, 300); // 向下進入電網
             ctx.stroke();
 
-            // 5. 繪製 4 個電源目標位置 (圓圈)
-            ctx.setLineDash([]); // 圓圈用實線標示位置
+            // 3. 繪製嵌套的正方形電網 (根據圖片位置手動定義座標)
+            const squares = [
+                {x: 350, y: 350, w: 100, h: 100}, // 最內層
+                {x: 300, y: 300, w: 250, h: 250}, // 中內層
+                {x: 200, y: 250, w: 400, h: 400}, // 中外層
+                {x: 100, y: 550, w: 650, h: 200}  // 底部大長方形
+            ];
+
+            squares.forEach(s => {
+                ctx.strokeRect(s.x, s.y, s.w, s.h);
+            });
+
+            // 4. 繪製交錯的垂直與水平連通線
+            ctx.beginPath();
+            // 左側長垂直線
+            ctx.moveTo(100, 550); ctx.lineTo(100, 750);
+            // 右側連接線
+            ctx.moveTo(750, 100); ctx.lineTo(750, 750);
+            ctx.moveTo(550, 100); ctx.lineTo(750, 100);
+            // 橫向貫穿線
+            ctx.moveTo(100, 650); ctx.lineTo(750, 650);
+            ctx.stroke();
+
+            // 5. 繪製 6 個綠色電源點 (圓圈)
+            ctx.setLineDash([]); // 圓圈用實線
+            ctx.strokeStyle = "#4CAF50";
             const targets = [
-                {x: center, y: center},             // 中心
-                {x: center + 240, y: center - 160}, // 右上
-                {x: center - 240, y: center + 160}, // 左下
-                {x: center + 320, y: center + 80}   // 右側
+                {x: 450, y: 400}, // 中心
+                {x: 380, y: 350}, // 中心偏左上
+                {x: 750, y: 100}, // 右上角
+                {x: 650, y: 200}, // 中右
+                {x: 600, y: 650}, // 下右
+                {x: 100, y: 750}  // 左下角
             ];
 
             targets.forEach(t => {
                 ctx.beginPath();
-                ctx.arc(t.x, t.y, 15, 0, Math.PI * 2);
+                ctx.arc(t.x, t.y, 22, 0, Math.PI * 2);
                 ctx.stroke();
             });
         }
 
-        drawCircuit();
+        drawOriginalCircuit();
     </script>
 </body>
 </html>
