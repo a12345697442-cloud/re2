@@ -2,118 +2,147 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>電路解謎小遊戲</title>
+    <title>電路解謎遊戲 - 測試版</title>
     <style>
-        body { background: #1a1a1a; color: white; text-align: center; font-family: sans-serif; }
-        canvas { background: #ffffff; cursor: pointer; border: 5px solid #333; margin-top: 20px; }
-        .controls { margin: 20px; }
-        button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
+        body { background: #1a1a1a; color: white; text-align: center; font-family: "Microsoft JhengHei", sans-serif; }
+        canvas { background: #fdfdfd; cursor: pointer; border: 5px solid #333; border-radius: 8px; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        .info { margin: 15px; font-size: 18px; color: #ecf0f1; }
+        .win-msg { color: #2ecc71; font-weight: bold; font-size: 24px; display: none; }
     </style>
 </head>
 <body>
 
-    <h1>電路解謎遊戲</h1>
-    <p>點擊紅色方框旋轉符號，連接電池（頂端黑色）與所有綠燈！</p>
+    <h1>電路解謎：點亮綠燈</h1>
+    <div class="info">電池在最上方黑色區塊。點擊紅色框旋轉 90°</div>
+    <div id="win-text" class="win-msg">恭喜！所有線路已接通！</div>
     
-    <canvas id="gameCanvas" width="600" height="600"></canvas>
-
-    <div class="controls">
-        <button onclick="checkWin()">檢查連線狀態</button>
-        <p id="status"></p>
-    </div>
+    <canvas id="gameCanvas" width="700" height="700"></canvas>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        const gridSize = 80;
-        const padding = 60;
 
-        // 定義符號類型
-        // 0: T型, 1: L型, 2: 黃色雙變道(不交叉連通)
-        const T_SHAPE = 0;
-        const L_SHAPE = 1;
-        const DOUBLE_CURVE = 2;
+        // 符號類型定義
+        const T_SHAPE = 'T';
+        const L_SHAPE = 'L';
+        const D_CURVE = 'D'; // 黃色雙彎道
 
-        // 模擬地圖數據 (部分範例)
+        // 網格設定
+        const center = { x: 350, y: 350 };
+        const step = 70;
+
+        // 簡易地圖數據：對應「未命名-1.jpg」的結構 (範例取其中幾點)
         let nodes = [
-            { x: 3, y: 0, type: T_SHAPE, rotation: 0, isPower: false }, // 電池下方第一個
-            { x: 3, y: 1, type: L_SHAPE, rotation: 1, isPower: false },
-            { x: 2, y: 1, type: DOUBLE_CURVE, rotation: 0, isPower: false },
-            // 你可以在這裡依照圖片座標增加更多節點...
+            // 中心垂直軸
+            { id: 1, x: 0, y: -4, type: T_SHAPE, rot: 2, power: false }, // 靠近電池
+            { id: 2, x: 0, y: -3, type: L_SHAPE, rot: 0, power: false },
+            { id: 3, x: 0, y: -2, type: T_SHAPE, rot: 1, power: false },
+            { id: 4, x: 0, y: -1, type: D_CURVE, rot: 0, power: false }, // 特殊黃色
+            { id: 5, x: 0, y: 0,  type: 'CORE',  power: false },      // 中心大綠燈
+            { id: 6, x: 0, y: 1,  type: D_CURVE, rot: 1, power: false },
+            // 水平軸
+            { id: 7, x: -1, y: 0, type: T_SHAPE, rot: 3, power: false },
+            { id: 8, x: 1, y: 0,  type: L_SHAPE, rot: 0, power: false }
         ];
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // 繪製頂部電池
+            // 1. 繪製電池 (頂部黑色)
             ctx.fillStyle = '#2c3e50';
-            ctx.fillRect(250, 0, 100, 40);
+            ctx.fillRect(center.x - 40, 20, 80, 40);
 
-            nodes.forEach(node => {
-                const px = node.x * gridSize + padding;
-                const py = node.y * gridSize + padding;
+            // 2. 繪製連線與符號
+            nodes.forEach(n => {
+                const px = center.x + n.x * step;
+                const py = center.y + n.y * step;
 
-                // 繪製紅色框
-                ctx.strokeStyle = 'red';
-                ctx.lineWidth = 2;
-                ctx.strokeRect(px - 30, py - 30, 60, 60);
+                // 繪製外紅框
+                ctx.strokeStyle = '#e74c3c';
+                ctx.lineWidth = 1.5;
+                ctx.strokeRect(px - 25, py - 25, 50, 50);
 
-                // 根據旋轉角度繪製符號
+                // 繪製符號內容
                 ctx.save();
                 ctx.translate(px, py);
-                ctx.rotate(node.rotation * Math.PI / 2);
+                if(n.type !== 'CORE') ctx.rotate(n.rot * Math.PI / 2);
                 
-                drawSymbol(node.type);
+                renderSymbol(n);
                 ctx.restore();
             });
+
+            requestAnimationFrame(updateLogic);
         }
 
-        function drawSymbol(type) {
+        function renderSymbol(n) {
             ctx.lineWidth = 4;
-            if (type === T_SHAPE) {
-                ctx.strokeStyle = '#005596'; // 藍色
+            // 判斷顏色：有電為實線，沒電為深灰
+            const color = n.power ? (n.type === D_CURVE ? '#f1c40f' : '#2980b9') : '#bdc3c7';
+            ctx.strokeStyle = color;
+            if(!n.power) ctx.setLineDash([5, 5]); // 沒電是虛線
+            else ctx.setLineDash([]);
+
+            if (n.type === T_SHAPE) {
                 ctx.beginPath();
-                ctx.moveTo(-30, 0); ctx.lineTo(30, 0);
-                ctx.moveTo(0, 0); ctx.lineTo(0, 30);
+                ctx.moveTo(-25, 0); ctx.lineTo(25, 0);
+                ctx.moveTo(0, 0); ctx.lineTo(0, 25);
                 ctx.stroke();
-            } else if (type === L_SHAPE) {
-                ctx.strokeStyle = '#005596';
+            } else if (n.type === L_SHAPE) {
                 ctx.beginPath();
-                ctx.moveTo(0, -30); ctx.lineTo(0, 0); ctx.lineTo(30, 0);
+                ctx.moveTo(0, -25); ctx.lineTo(0, 0); ctx.lineTo(25, 0);
                 ctx.stroke();
-            } else if (type === DOUBLE_CURVE) {
-                ctx.strokeStyle = '#ffee00'; // 黃色
-                // 繪製兩條不相交的曲線 (雙彎道)
+            } else if (n.type === D_CURVE) {
+                ctx.strokeStyle = n.power ? '#f1c40f' : '#95a5a6'; // 黃色調
                 ctx.beginPath();
-                ctx.arc(-30, -30, 30, 0, Math.PI / 2);
+                ctx.arc(-25, -25, 25, 0, Math.PI/2); // 彎道 1
                 ctx.stroke();
                 ctx.beginPath();
-                ctx.arc(30, 30, 30, Math.PI, Math.PI * 1.5);
+                ctx.arc(25, 25, 25, Math.PI, Math.PI*1.5); // 彎道 2
                 ctx.stroke();
+            } else if (n.type === 'CORE') {
+                ctx.fillStyle = n.power ? '#2ecc71' : '#7f8c8d';
+                ctx.beginPath();
+                ctx.arc(0, 0, 20, 0, Math.PI*2);
+                ctx.fill();
             }
         }
 
-        // 點擊旋轉邏輯
-        canvas.addEventListener('click', (e) => {
+        // 簡單的點擊偵測與旋轉
+        canvas.addEventListener('mousedown', (e) => {
             const rect = canvas.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left;
-            const mouseY = e.clientY - rect.top;
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
 
-            nodes.forEach(node => {
-                const px = node.x * gridSize + padding;
-                const py = node.y * gridSize + padding;
-                if (mouseX > px - 30 && mouseX < px + 30 && mouseY > py - 30 && mouseY < py + 30) {
-                    node.rotation = (node.rotation + 1) % 4;
+            nodes.forEach(n => {
+                const px = center.x + n.x * step;
+                const py = center.y + n.y * step;
+                if (Math.abs(mx - px) < 25 && Math.abs(my - py) < 25) {
+                    n.rot = (n.rot + 1) % 4;
+                    checkPower(); // 每次轉動就重新計算通電
                     draw();
                 }
             });
         });
 
-        function checkWin() {
-            // 這裡需要實作 DFS 或 BFS 演算法來檢查從電池出發的連通性
-            document.getElementById('status').innerText = "連線邏輯計算中... (需根據地圖完整座標實作)";
+        function checkPower() {
+            // 重置所有節點電力
+            nodes.forEach(n => n.power = false);
+            
+            // 這裡應實作深度優先搜尋 (DFS)
+            // 為了展示效果，我們先預設：如果第一個節點轉到正確位置(向下)，則通電
+            if (nodes[0].rot === 2) { 
+                nodes[0].power = true;
+                // 簡化模擬：只要相鄰就傳電
+                nodes[1].power = true; 
+            }
         }
 
+        function updateLogic() {
+            // 持續繪製
+            draw();
+        }
+
+        checkPower();
         draw();
     </script>
 </body>
