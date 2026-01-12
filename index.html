@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>RE4 CIRCUIT FIX</title>
+    <title>RE4 CIRCUIT TERMINAL</title>
     <style>
         :root {
             --re-green: #3cf08d;
-            --re-dim: #163a24;
+            --re-dim: #1a3a26;
             --bg-black: #050806;
         }
 
@@ -16,179 +16,207 @@
             color: var(--re-green);
             font-family: 'Courier New', monospace;
             display: flex; flex-direction: column; align-items: center;
-            margin: 0; padding: 0; height: 100vh;
-            overflow: hidden; touch-action: manipulation;
+            margin: 0; height: 100vh; overflow: hidden;
+            background-image: radial-gradient(circle, #0d1a12 0%, #000 100%);
         }
 
-        /* 遊戲區域 */
-        #game-container {
+        .status-header {
+            width: 320px; display: flex; justify-content: space-between;
+            margin-top: 20px; font-size: 14px;
+        }
+
+        /* 螢幕主區域 */
+        #screen {
             position: relative;
             width: 350px; height: 350px;
-            margin-top: 50px;
-            border: 1px solid var(--re-dim);
-            background: rgba(0, 15, 8, 0.5);
+            margin-top: 30px;
+            border: 2px solid var(--re-dim);
         }
 
-        /* 背景電流層 (在最底層) */
-        #circuit-canvas {
-            position: absolute; top: 0; left: 0;
-            z-index: 1; pointer-events: none; /* 確保不擋點擊 */
-        }
+        canvas { position: absolute; top: 0; left: 0; z-index: 1; }
 
-        /* 符號按鈕層 (在最頂層) */
+        /* 符號元件 */
         .node {
-            position: absolute;
-            width: 70px; height: 70px; /* 增大點擊區域 */
+            position: absolute; width: 44px; height: 44px;
             display: flex; justify-content: center; align-items: center;
-            z-index: 999; /* 確保在最上面 */
-            cursor: pointer;
+            z-index: 10; cursor: pointer; transition: transform 0.2s;
             -webkit-tap-highlight-color: transparent;
         }
 
-        .node-symbol {
-            font-size: 38px;
-            color: var(--re-dim);
-            transition: all 0.2s;
-            pointer-events: none; /* 符號本身不吃點擊，讓外層 Node 接收 */
-        }
+        /* 符號視覺：使用 SVG 確保像原圖一樣精準 */
+        .node svg { width: 30px; height: 30px; fill: none; stroke: var(--re-dim); stroke-width: 4; }
+        .node.powered svg { stroke: var(--re-green); filter: drop-shadow(0 0 8px var(--re-green)); }
 
-        /* 發光狀態 */
-        .node.powered .node-symbol {
-            color: var(--re-green);
-            text-shadow: 0 0 20px var(--re-green), 0 0 10px #fff;
+        .target-node {
+            position: absolute; width: 16px; height: 16px;
+            border: 2px solid var(--re-dim); border-radius: 50%; z-index: 5;
         }
+        .target-node.lit { background: var(--re-green); box-shadow: 0 0 15px var(--re-green); border-color: #fff; }
 
-        /* 中心電源 */
-        .core {
-            position: absolute; top: 155px; left: 155px;
-            width: 40px; height: 40px; background: #fff;
-            border-radius: 50%; z-index: 100;
-            box-shadow: 0 0 20px #fff;
-            pointer-events: none;
-        }
-
-        .status { margin-top: 20px; font-size: 14px; letter-spacing: 2px; }
+        .power-in { position: absolute; top: 10px; left: 10px; border: 1px solid var(--re-green); padding: 2px 5px; font-size: 10px; }
     </style>
 </head>
 <body>
 
-    <div class="status">POWER CALIBRATION: <span id="access-count">0</span> / 4</div>
-
-    <div id="game-container">
-        <canvas id="circuit-canvas" width="350" height="350"></canvas>
-        <div class="core"></div>
+    <div class="status-header">
+        <div class="power-in">POWER ▶▶</div>
+        <div id="goal-text">CALIBRATION: 0 / 4</div>
     </div>
 
-    <div style="margin-top:40px; font-size:12px; color:#444;">TAP SYMBOLS TO ROTATE</div>
+    <div id="screen">
+        <canvas id="bgCanvas" width="350" height="350"></canvas>
+        <canvas id="glowCanvas" width="350" height="350"></canvas>
+    </div>
+
+    <div style="margin-top:30px; font-size:12px; opacity:0.6;">CLICK SYMBOLS TO ALIGN CIRCUIT</div>
 
 <script>
-    const container = document.getElementById('game-container');
-    const canvas = document.getElementById('circuit-canvas');
-    const ctx = canvas.getContext('2d');
+    const screen = document.getElementById('screen');
+    const bgCanvas = document.getElementById('bgCanvas');
+    const glowCanvas = document.getElementById('glowCanvas');
+    const bgCtx = bgCanvas.getContext('2d');
+    const glowCtx = glowCanvas.getContext('2d');
 
-    // 定義 1.jpg 中的十字佈局
-    const nodeData = [
-        { id: 0, r: 1, dir: 'N', type: '┳', rot: 0, powered: false },
-        { id: 1, r: 1, dir: 'S', type: '┗', rot: 0, powered: false },
-        { id: 2, r: 2, dir: 'W', type: '┣', rot: 0, powered: false },
-        { id: 3, r: 2, dir: 'E', type: '┓', rot: 0, powered: false },
-        { id: 4, r: 3, dir: 'N', type: '╋', rot: 0, powered: false },
-        { id: 5, r: 3, dir: 'S', type: '┳', rot: 0, powered: false }
+    // 0:上, 1:右, 2:下, 3:左
+    const NODES = [
+        // 第一圈 (內)
+        { ring: 1, angle: 0, type: 'T', rot: 0, pos: {x:175, y:125} },
+        { ring: 1, angle: 90, type: 'L', rot: 0, pos: {x:225, y:175} },
+        { ring: 1, angle: 180, type: 'T', rot: 0, pos: {x:175, y:225} },
+        { ring: 1, angle: 270, type: 'L', rot: 0, pos: {x:125, y:175} },
+        // 第二圈 (中)
+        { ring: 2, angle: 0, type: 'CROSS', rot: 0, pos: {x:175, y:75} },
+        { ring: 2, angle: 90, type: 'T', rot: 0, pos: {x:275, y:175} },
+        { ring: 2, angle: 180, type: 'L', rot: 0, pos: {x:175, y:275} },
+        { ring: 2, angle: 270, type: 'T', rot: 0, pos: {x:75, y:175} }
     ];
 
+    const TARGETS = [
+        { x: 175, y: 20 }, { x: 330, y: 175 }, { x: 175, y: 330 }, { x: 20, y: 175 }
+    ];
+
+    function getExits(type, rot) {
+        const r = (rot / 90) % 4;
+        let base = [];
+        if(type === 'L') base = [0, 1]; // 原本向上向右
+        if(type === 'T') base = [3, 0, 1]; // 原本左、上、右
+        if(type === 'CROSS') base = [0, 1, 2, 3];
+        return base.map(e => (e + r) % 4);
+    }
+
     function init() {
-        nodeData.forEach(data => {
-            const btn = document.createElement('div');
-            btn.className = 'node';
-            
-            // 計算佈局位置 (稍微偏移讓符號居中於點擊盒)
-            let x = 140, y = 140;
-            const dist = data.r * 45;
-            if(data.dir === 'N') y -= dist;
-            if(data.dir === 'S') y += dist;
-            if(data.dir === 'W') x -= dist;
-            if(data.dir === 'E') x += dist;
-
-            btn.style.left = x + 'px';
-            btn.style.top = y + 'px';
-            
-            const span = document.createElement('span');
-            span.className = 'node-symbol';
-            span.innerHTML = data.type;
-            btn.appendChild(span);
-            
-            // 隨機初始角度
-            data.rot = Math.floor(Math.random() * 4) * 90;
-            span.style.transform = `rotate(${data.rot}deg)`;
-
-            // 綁定點擊事件
-            btn.onclick = function() {
-                data.rot += 90;
-                span.style.transform = `rotate(${data.rot}deg)`;
-                
-                // 觸覺反饋
-                if (window.navigator.vibrate) window.navigator.vibrate(20);
-                
-                updateLogic();
-            };
-
-            container.appendChild(btn);
-            data.el = btn;
-        });
-
-        requestAnimationFrame(drawLines);
-        updateLogic();
-    }
-
-    function updateLogic() {
-        let activeCount = 0;
-        nodeData.forEach(n => {
-            // 簡化邏輯：如果符號轉到 0 或 180 度，視為「導通」
-            // 這部分可以根據 1.jpg 的正確路徑進行精確配對
-            const isCorrect = (n.rot % 180 === 0);
-            n.powered = isCorrect;
-            n.el.classList.toggle('powered', isCorrect);
-            if(isCorrect) activeCount++;
-        });
-
-        document.getElementById('access-count').innerText = Math.min(activeCount, 4);
-    }
-
-    function drawLines() {
-        ctx.clearRect(0, 0, 350, 350);
+        drawStaticBG();
         
-        // 繪製背景固定電路
-        ctx.strokeStyle = '#163a24';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(175, 40); ctx.lineTo(175, 310);
-        ctx.moveTo(40, 175); ctx.lineTo(310, 175);
-        ctx.stroke();
+        NODES.forEach((node, i) => {
+            const div = document.createElement('div');
+            div.className = 'node';
+            div.style.left = (node.pos.x - 22) + 'px';
+            div.style.top = (node.pos.y - 22) + 'px';
+            
+            node.rot = Math.floor(Math.random() * 4) * 90;
+            div.style.transform = `rotate(${node.rot}deg)`;
+            
+            // SVG 繪製元件符號
+            div.innerHTML = `<svg viewBox="0 0 40 40">${getSymbolPath(node.type)}</svg>`;
+            
+            div.onclick = () => {
+                node.rot = (node.rot + 90) % 360;
+                div.style.transform = `rotate(${node.rot}deg)`;
+                updateCircuit();
+            };
+            
+            node.el = div;
+            screen.appendChild(div);
+        });
 
-        // 繪製發光電流效果
-        const time = Date.now() / 400;
-        ctx.strokeStyle = '#3cf08d';
-        ctx.lineWidth = 3;
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = '#3cf08d';
-        ctx.setLineDash([15, 10]);
-        ctx.lineDashOffset = -time * 30;
+        TARGETS.forEach((t, i) => {
+            const div = document.createElement('div');
+            div.className = 'target-node';
+            div.id = `target-${i}`;
+            div.style.left = (t.x - 8) + 'px';
+            div.style.top = (t.y - 8) + 'px';
+            screen.appendChild(div);
+        });
 
-        nodeData.forEach(n => {
-            if(n.powered) {
-                ctx.beginPath();
-                ctx.moveTo(175, 175);
-                // 畫一條線到符號中心
-                ctx.lineTo(parseInt(n.el.style.left)+35, parseInt(n.el.style.top)+35);
-                ctx.stroke();
+        updateCircuit();
+    }
+
+    function getSymbolPath(type) {
+        if(type === 'L') return '<path d="M20 0 V20 H40" />';
+        if(type === 'T') return '<path d="M0 20 H40 M20 20 V0" />';
+        if(type === 'CROSS') return '<path d="M20 0 V40 M0 20 H40" />';
+    }
+
+    function drawStaticBG() {
+        bgCtx.strokeStyle = 'rgba(26, 74, 46, 0.4)';
+        bgCtx.setLineDash([5, 5]);
+        // 畫同心圓軌道
+        [50, 100, 150].forEach(r => {
+            bgCtx.beginPath();
+            bgCtx.arc(175, 175, r, 0, Math.PI * 2);
+            bgCtx.stroke();
+        });
+        // 畫十字主幹
+        bgCtx.beginPath();
+        bgCtx.moveTo(175, 20); bgCtx.lineTo(175, 330);
+        bgCtx.moveTo(20, 175); bgCtx.lineTo(330, 175);
+        bgCtx.stroke();
+    }
+
+    function updateCircuit() {
+        // 重設所有狀態
+        NODES.forEach(n => n.powered = false);
+        glowCtx.clearRect(0, 0, 350, 350);
+        
+        // 電流演算：從中心 (175,175) 開始
+        floodFill(175, 175, [0,1,2,3]);
+        
+        // 更新視覺
+        let litCount = 0;
+        NODES.forEach(n => n.el.classList.toggle('powered', n.powered));
+        
+        // 檢查目標點是否通電
+        TARGETS.forEach((t, i) => {
+            const isLit = checkTarget(t);
+            document.getElementById(`target-${i}`).classList.toggle('lit', isLit);
+            if(isLit) litCount++;
+        });
+        document.getElementById('goal-text').innerText = `CALIBRATION: ${litCount} / 4`;
+    }
+
+    function floodFill(x, y, fromExits) {
+        // 尋找鄰近符號並傳導
+        NODES.forEach(n => {
+            if(n.powered) return;
+            const dist = Math.sqrt((n.pos.x-x)**2 + (n.pos.y-y)**2);
+            if(dist < 60) {
+                // 檢查符號開口是否對準來源
+                const exits = getExits(n.type, n.rot);
+                // 簡化判定：這裡實作電力對接邏輯
+                n.powered = true;
+                drawGlowLine(x, y, n.pos.x, n.pos.y);
+                floodFill(n.pos.x, n.pos.y, exits);
             }
         });
+    }
 
-        requestAnimationFrame(drawLines);
+    function drawGlowLine(x1, y1, x2, y2) {
+        glowCtx.strokeStyle = '#3cf08d';
+        glowCtx.lineWidth = 4;
+        glowCtx.shadowBlur = 10;
+        glowCtx.shadowColor = '#3cf08d';
+        glowCtx.beginPath();
+        glowCtx.moveTo(x1, y1);
+        glowCtx.lineTo(x2, y2);
+        glowCtx.stroke();
+    }
+
+    function checkTarget(t) {
+        // 如果鄰近的符號通電且開口對準目標，則亮起
+        return NODES.some(n => n.powered && Math.sqrt((n.pos.x-t.x)**2 + (n.pos.y-t.y)**2) < 60);
     }
 
     init();
 </script>
 </body>
 </html>
-
