@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>RE4 CIRCUIT TERMINAL</title>
+    <title>RE4 FINAL CALIBRATION</title>
     <style>
         :root {
             --re-green: #3cf08d;
@@ -12,211 +12,199 @@
         }
 
         body {
-            background-color: var(--bg-black);
-            color: var(--re-green);
+            background-color: var(--bg-black); color: var(--re-green);
             font-family: 'Courier New', monospace;
             display: flex; flex-direction: column; align-items: center;
             margin: 0; height: 100vh; overflow: hidden;
             background-image: radial-gradient(circle, #0d1a12 0%, #000 100%);
         }
 
-        .status-header {
-            width: 320px; display: flex; justify-content: space-between;
-            margin-top: 20px; font-size: 14px;
+        #terminal {
+            position: relative; width: 360px; height: 380px;
+            margin-top: 20px; border: 2px solid var(--re-dim);
+            background: rgba(0, 10, 5, 0.8);
         }
 
-        /* 螢幕主區域 */
-        #screen {
-            position: relative;
-            width: 350px; height: 350px;
-            margin-top: 30px;
-            border: 2px solid var(--re-dim);
-        }
+        canvas { position: absolute; top: 0; left: 0; z-index: 5; pointer-events: none; }
 
-        canvas { position: absolute; top: 0; left: 0; z-index: 1; }
-
-        /* 符號元件 */
+        /* 符號按鈕樣式 */
         .node {
             position: absolute; width: 44px; height: 44px;
             display: flex; justify-content: center; align-items: center;
-            z-index: 10; cursor: pointer; transition: transform 0.2s;
+            z-index: 100; cursor: pointer; transition: transform 0.2s;
             -webkit-tap-highlight-color: transparent;
         }
 
-        /* 符號視覺：使用 SVG 確保像原圖一樣精準 */
-        .node svg { width: 30px; height: 30px; fill: none; stroke: var(--re-dim); stroke-width: 4; }
-        .node.powered svg { stroke: var(--re-green); filter: drop-shadow(0 0 8px var(--re-green)); }
+        .node svg { width: 32px; height: 32px; fill: none; stroke: var(--re-dim); stroke-width: 3; }
+        .node.on svg { stroke: var(--re-green); filter: drop-shadow(0 0 8px var(--re-green)); }
 
-        .target-node {
-            position: absolute; width: 16px; height: 16px;
-            border: 2px solid var(--re-dim); border-radius: 50%; z-index: 5;
+        /* 目標電源點 */
+        .power-goal {
+            position: absolute; width: 20px; height: 20px;
+            border: 2px solid var(--re-dim); border-radius: 50%;
+            display: flex; justify-content: center; align-items: center; z-index: 10;
         }
-        .target-node.lit { background: var(--re-green); box-shadow: 0 0 15px var(--re-green); border-color: #fff; }
+        .power-goal::after { content: '⚡'; font-size: 10px; opacity: 0.3; }
+        .power-goal.active { border-color: #fff; box-shadow: 0 0 15px var(--re-green); background: var(--re-green); }
+        .power-goal.active::after { opacity: 1; color: #000; }
 
-        .power-in { position: absolute; top: 10px; left: 10px; border: 1px solid var(--re-green); padding: 2px 5px; font-size: 10px; }
+        .power-tag { position: absolute; top: 15px; left: 15px; border: 1px solid var(--re-green); padding: 3px 8px; font-size: 12px; z-index: 20; }
+        .counter { position: absolute; top: 15px; right: 15px; font-size: 14px; }
     </style>
 </head>
 <body>
 
-    <div class="status-header">
-        <div class="power-in">POWER ▶▶</div>
-        <div id="goal-text">CALIBRATION: 0 / 4</div>
+    <div id="terminal">
+        <div class="power-tag" id="main-power">POWER ▶▶</div>
+        <div class="counter" id="status">0 / 4</div>
+        <canvas id="circuitCanvas" width="360" height="380"></canvas>
     </div>
 
-    <div id="screen">
-        <canvas id="bgCanvas" width="350" height="350"></canvas>
-        <canvas id="glowCanvas" width="350" height="350"></canvas>
-    </div>
-
-    <div style="margin-top:30px; font-size:12px; opacity:0.6;">CLICK SYMBOLS TO ALIGN CIRCUIT</div>
+    <div style="margin-top:20px; font-size:12px; color:var(--re-dim);">INSUFFICIENT POWER. CALIBRATION REQUIRED.</div>
 
 <script>
-    const screen = document.getElementById('screen');
-    const bgCanvas = document.getElementById('bgCanvas');
-    const glowCanvas = document.getElementById('glowCanvas');
-    const bgCtx = bgCanvas.getContext('2d');
-    const glowCtx = glowCanvas.getContext('2d');
+    const canvas = document.getElementById('circuitCanvas');
+    const ctx = canvas.getContext('2d');
+    const statusEl = document.getElementById('status');
 
-    // 0:上, 1:右, 2:下, 3:左
-    const NODES = [
-        // 第一圈 (內)
-        { ring: 1, angle: 0, type: 'T', rot: 0, pos: {x:175, y:125} },
-        { ring: 1, angle: 90, type: 'L', rot: 0, pos: {x:225, y:175} },
-        { ring: 1, angle: 180, type: 'T', rot: 0, pos: {x:175, y:225} },
-        { ring: 1, angle: 270, type: 'L', rot: 0, pos: {x:125, y:175} },
-        // 第二圈 (中)
-        { ring: 2, angle: 0, type: 'CROSS', rot: 0, pos: {x:175, y:75} },
-        { ring: 2, angle: 90, type: 'T', rot: 0, pos: {x:275, y:175} },
-        { ring: 2, angle: 180, type: 'L', rot: 0, pos: {x:175, y:275} },
-        { ring: 2, angle: 270, type: 'T', rot: 0, pos: {x:75, y:175} }
+    // 定義方形電圈 (由外到內)
+    const layers = [140, 100, 60, 20]; // 每個方形的半徑
+    const nodes = [];
+    const goals = [
+        { x: 180, y: 80,  layer: 1, active: false },
+        { x: 280, y: 190, layer: 0, active: false },
+        { x: 180, y: 300, layer: 2, active: false },
+        { x: 80,  y: 190, layer: 1, active: false }
     ];
 
-    const TARGETS = [
-        { x: 175, y: 20 }, { x: 330, y: 175 }, { x: 175, y: 330 }, { x: 20, y: 175 }
-    ];
-
-    function getExits(type, rot) {
-        const r = (rot / 90) % 4;
-        let base = [];
-        if(type === 'L') base = [0, 1]; // 原本向上向右
-        if(type === 'T') base = [3, 0, 1]; // 原本左、上、右
-        if(type === 'CROSS') base = [0, 1, 2, 3];
-        return base.map(e => (e + r) % 4);
+    // 初始化節點 (放置在每一圈的十字交會點)
+    function initNodes() {
+        const types = ['T', 'L', 'CROSS', 'T', 'L', 'T', 'L', 'CROSS'];
+        let id = 0;
+        for (let l = 0; l < 3; l++) { // 3層可轉向節點
+            const dist = layers[l];
+            const positions = [
+                {x: 180, y: 190-dist, d: 'N'}, {x: 180+dist, y: 190, d: 'E'},
+                {x: 180, y: 190+dist, d: 'S'}, {x: 180-dist, y: 190, d: 'W'}
+            ];
+            positions.forEach(p => {
+                const node = {
+                    id: id++, x: p.x, y: p.y, layer: l,
+                    type: types[id % types.length],
+                    rot: Math.floor(Math.random() * 4) * 90,
+                    powered: false
+                };
+                createNodeElement(node);
+                nodes.push(node);
+            });
+        }
     }
 
-    function init() {
-        drawStaticBG();
-        
-        NODES.forEach((node, i) => {
-            const div = document.createElement('div');
-            div.className = 'node';
-            div.style.left = (node.pos.x - 22) + 'px';
-            div.style.top = (node.pos.y - 22) + 'px';
-            
-            node.rot = Math.floor(Math.random() * 4) * 90;
+    function createNodeElement(node) {
+        const div = document.createElement('div');
+        div.className = 'node';
+        div.style.left = (node.x - 22) + 'px';
+        div.style.top = (node.y - 22) + 'px';
+        div.style.transform = `rotate(${node.rot}deg)`;
+        div.innerHTML = `<svg viewBox="0 0 40 40">${getSVGPath(node.type)}</svg>`;
+        div.onclick = () => {
+            node.rot = (node.rot + 90) % 360;
             div.style.transform = `rotate(${node.rot}deg)`;
-            
-            // SVG 繪製元件符號
-            div.innerHTML = `<svg viewBox="0 0 40 40">${getSymbolPath(node.type)}</svg>`;
-            
-            div.onclick = () => {
-                node.rot = (node.rot + 90) % 360;
-                div.style.transform = `rotate(${node.rot}deg)`;
-                updateCircuit();
-            };
-            
-            node.el = div;
-            screen.appendChild(div);
-        });
-
-        TARGETS.forEach((t, i) => {
-            const div = document.createElement('div');
-            div.className = 'target-node';
-            div.id = `target-${i}`;
-            div.style.left = (t.x - 8) + 'px';
-            div.style.top = (t.y - 8) + 'px';
-            screen.appendChild(div);
-        });
-
-        updateCircuit();
+            if (window.navigator.vibrate) window.navigator.vibrate(20);
+            updateGame();
+        };
+        node.el = div;
+        document.getElementById('terminal').appendChild(div);
     }
 
-    function getSymbolPath(type) {
+    function getSVGPath(type) {
         if(type === 'L') return '<path d="M20 0 V20 H40" />';
         if(type === 'T') return '<path d="M0 20 H40 M20 20 V0" />';
-        if(type === 'CROSS') return '<path d="M20 0 V40 M0 20 H40" />';
+        return '<path d="M20 0 V40 M0 20 H40" />'; // CROSS
     }
 
-    function drawStaticBG() {
-        bgCtx.strokeStyle = 'rgba(26, 74, 46, 0.4)';
-        bgCtx.setLineDash([5, 5]);
-        // 畫同心圓軌道
-        [50, 100, 150].forEach(r => {
-            bgCtx.beginPath();
-            bgCtx.arc(175, 175, r, 0, Math.PI * 2);
-            bgCtx.stroke();
+    function drawBaseGrid() {
+        ctx.clearRect(0, 0, 360, 380);
+        ctx.setLineDash([5, 5]);
+        ctx.strokeStyle = '#1a3a26';
+        ctx.lineWidth = 1;
+
+        layers.forEach(r => {
+            ctx.strokeRect(180 - r, 190 - r, r * 2, r * 2);
         });
-        // 畫十字主幹
-        bgCtx.beginPath();
-        bgCtx.moveTo(175, 20); bgCtx.lineTo(175, 330);
-        bgCtx.moveTo(20, 175); bgCtx.lineTo(330, 175);
-        bgCtx.stroke();
+
+        // 畫十字連接線
+        ctx.beginPath();
+        ctx.moveTo(180, 50); ctx.lineTo(180, 330);
+        ctx.moveTo(40, 190); ctx.lineTo(320, 190);
+        ctx.stroke();
     }
 
-    function updateCircuit() {
-        // 重設所有狀態
-        NODES.forEach(n => n.powered = false);
-        glowCtx.clearRect(0, 0, 350, 350);
+    function updateGame() {
+        // 核心邏輯：從左上角 POWER (15, 15) 開始傳導
+        // 為了簡化，我們模擬電力從最外圈順時針流動
+        nodes.forEach(n => n.powered = false);
         
-        // 電流演算：從中心 (175,175) 開始
-        floodFill(175, 175, [0,1,2,3]);
-        
-        // 更新視覺
-        let litCount = 0;
-        NODES.forEach(n => n.el.classList.toggle('powered', n.powered));
-        
-        // 檢查目標點是否通電
-        TARGETS.forEach((t, i) => {
-            const isLit = checkTarget(t);
-            document.getElementById(`target-${i}`).classList.toggle('lit', isLit);
-            if(isLit) litCount++;
+        // 模擬傳導算式：根據旋轉角度決定電力是否進入下一層
+        let powerLevel = 0;
+        nodes.forEach(n => {
+            // 如果是 T 或 CROSS 且角度對準，則設為 powered
+            if (n.rot % 180 === 0) n.powered = true;
+            n.el.classList.toggle('on', n.powered);
         });
-        document.getElementById('goal-text').innerText = `CALIBRATION: ${litCount} / 4`;
+
+        // 更新目標點
+        let activeGoals = 0;
+        goals.forEach((g, i) => {
+            // 檢查目標所在的圈層節點是否通電
+            const relatedNode = nodes.find(n => n.layer === g.layer && n.powered);
+            g.active = !!relatedNode;
+            const el = document.getElementById(`goal-${i}`);
+            el.classList.toggle('active', g.active);
+            if(g.active) activeGoals++;
+        });
+
+        statusEl.innerText = `${activeGoals} / 4`;
+        drawCurrent();
     }
 
-    function floodFill(x, y, fromExits) {
-        // 尋找鄰近符號並傳導
-        NODES.forEach(n => {
-            if(n.powered) return;
-            const dist = Math.sqrt((n.pos.x-x)**2 + (n.pos.y-y)**2);
-            if(dist < 60) {
-                // 檢查符號開口是否對準來源
-                const exits = getExits(n.type, n.rot);
-                // 簡化判定：這裡實作電力對接邏輯
-                n.powered = true;
-                drawGlowLine(x, y, n.pos.x, n.pos.y);
-                floodFill(n.pos.x, n.pos.y, exits);
+    function drawCurrent() {
+        drawBaseGrid();
+        ctx.setLineDash([]);
+        ctx.strokeStyle = '#3cf08d';
+        ctx.lineWidth = 3;
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#3cf08d';
+
+        // 從 POWER 標籤引出一條線
+        ctx.beginPath();
+        ctx.moveTo(75, 25); ctx.lineTo(180 - layers[0], 25); 
+        ctx.lineTo(180 - layers[0], 190 - layers[0]);
+        ctx.stroke();
+
+        // 根據通電節點畫出發光方形
+        nodes.forEach(n => {
+            if(n.powered) {
+                const r = layers[n.layer];
+                ctx.strokeRect(180 - r, 190 - r, r * 2, r * 2);
             }
         });
     }
 
-    function drawGlowLine(x1, y1, x2, y2) {
-        glowCtx.strokeStyle = '#3cf08d';
-        glowCtx.lineWidth = 4;
-        glowCtx.shadowBlur = 10;
-        glowCtx.shadowColor = '#3cf08d';
-        glowCtx.beginPath();
-        glowCtx.moveTo(x1, y1);
-        glowCtx.lineTo(x2, y2);
-        glowCtx.stroke();
+    function initGoals() {
+        goals.forEach((g, i) => {
+            const div = document.createElement('div');
+            div.className = 'power-goal';
+            div.id = `goal-${i}`;
+            div.style.left = (g.x - 10) + 'px';
+            div.style.top = (g.y - 10) + 'px';
+            document.getElementById('terminal').appendChild(div);
+        });
     }
 
-    function checkTarget(t) {
-        // 如果鄰近的符號通電且開口對準目標，則亮起
-        return NODES.some(n => n.powered && Math.sqrt((n.pos.x-t.x)**2 + (n.pos.y-t.y)**2) < 60);
-    }
-
-    init();
+    initNodes();
+    initGoals();
+    updateGame();
 </script>
 </body>
 </html>
