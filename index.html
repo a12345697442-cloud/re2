@@ -3,177 +3,173 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>RE4 CIRCUIT TERMINAL</title>
+    <title>RE4 CIRCUIT FINAL FIX</title>
     <style>
-        :root { --green: #3cf08d; --dim: #15251a; --bg: #050605; }
-        body { background: var(--bg); color: var(--green); font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; margin: 0; overflow: hidden; }
+        :root { --green: #3cf08d; --dim: #1a2a20; --bg: #050806; }
+        body { background: var(--bg); color: var(--green); font-family: monospace; display: flex; flex-direction: column; align-items: center; margin: 0; overflow: hidden; }
         
-        #header { width: 340px; margin-top: 20px; display: flex; justify-content: space-between; border-bottom: 1px solid var(--dim); padding-bottom: 5px; }
-        #board { position: relative; width: 360px; height: 360px; margin-top: 20px; }
+        #header { width: 340px; margin-top: 20px; display: flex; justify-content: space-between; border-bottom: 1px solid var(--dim); padding-bottom: 10px; }
+        #board { position: relative; width: 360px; height: 380px; margin-top: 20px; border: 2px solid #222; }
         canvas { position: absolute; top: 0; left: 0; z-index: 5; pointer-events: none; }
 
-        /* 按鈕：縮小尺寸不擋電源 */
+        /* 按鈕：不擋路，工業風 */
         .knob {
-            position: absolute; width: 40px; height: 40px;
-            background: #111; border: 1px solid #333; z-index: 100;
+            position: absolute; width: 44px; height: 44px;
+            background: #111; border: 2px solid #333; z-index: 100;
             cursor: pointer; display: flex; justify-content: center; align-items: center;
         }
-        .knob svg { width: 30px; height: 30px; stroke: #333; stroke-width: 4; fill: none; }
-        .knob.lit { border-color: var(--green); box-shadow: 0 0 10px rgba(60,240,141,0.3); }
-        .knob.lit svg { stroke: var(--green); filter: drop-shadow(0 0 5px var(--green)); }
+        .knob svg { width: 34px; height: 34px; stroke: #222; stroke-width: 5; fill: none; pointer-events: none; }
+        .knob.powered svg { stroke: var(--green); filter: drop-shadow(0 0 5px var(--green)); }
 
-        /* 電源點：未通電時是空心圓 */
+        /* 電源點：在電線上，未通電是空心圓 */
         .cell {
-            position: absolute; width: 16px; height: 16px;
+            position: absolute; width: 14px; height: 14px;
             border: 2px solid var(--dim); border-radius: 50%; z-index: 50;
-            transition: 0.3s;
+            background: #000;
         }
         .cell.lit { background: var(--green); border-color: #fff; box-shadow: 0 0 15px var(--green); }
 
-        .btn-panel { margin-top: 25px; display: flex; gap: 10px; }
-        button { background: #111; border: 1px solid var(--green); color: var(--green); padding: 5px 15px; cursor: pointer; }
-        button:disabled { border-color: #333; color: #333; }
+        .btn-panel { margin-top: 20px; display: flex; gap: 10px; }
+        button { background: #000; border: 1px solid var(--green); color: var(--green); padding: 8px 20px; cursor: pointer; font-size: 12px; }
+        button:active { background: var(--green); color: #000; }
     </style>
 </head>
 <body>
 
     <div id="header">
-        <div id="level-title">STAGE 1</div>
-        <div id="stat">0 / 3</div>
+        <div id="lv-name">STAGE 1</div>
+        <div id="counter" style="font-size: 20px; font-weight: bold;">0 / 3</div>
     </div>
 
     <div id="board">
-        <canvas id="cvs" width="360" height="360"></canvas>
+        <canvas id="cvs" width="360" height="380"></canvas>
     </div>
 
     <div class="btn-panel">
-        <button id="prevBtn" onclick="changeLevel(-1)" disabled>PREV</button>
-        <button id="nextBtn" onclick="changeLevel(1)">NEXT STAGE</button>
+        <button onclick="initGame(1)">ST 1</button>
+        <button onclick="initGame(2)">ST 2</button>
+        <button onclick="initGame(3)">ST 3</button>
     </div>
 
 <script>
-let currentLevel = 1;
-const rings = [140, 100, 60, 25];
+let level = 1;
 let nodes = [];
 let cells = [];
+const centers = {x: 180, y: 190};
+const ringRadius = [140, 95, 55, 25];
 
-const levelConfigs = {
-    1: { rings: 2, goal: 3, nodes: [
-        {x: 180, y: 40, t: 'T', r: 0}, {x: 280, y: 180, t: 'L', r: 1}
-    ], cells: [
-        {x: 40, y: 180, r: 0}, {x: 180, y: 80, r: 1}, {x: 320, y: 180, r: 0}
-    ]},
-    2: { rings: 3, goal: 4, nodes: [
-        {x: 180, y: 40, t: 'T', r: 0}, {x: 280, y: 180, t: 'T', r: 1}, {x: 180, y: 240, t: 'L', r: 2}
-    ], cells: [
-        {x: 40, y: 40, r: 0}, {x: 280, y: 100, r: 1}, {x: 180, y: 300, r: 0}, {x: 180, y: 120, r: 2}
-    ]},
-    3: { rings: 4, goal: 5, nodes: [
-        {x: 180, y: 40, t: 'T', r: 0}, {x: 280, y: 180, t: 'DOUBLE_L', r: 1}, 
-        {x: 180, y: 240, t: 'CROSS', r: 2}, {x: 120, y: 180, t: 'L', r: 3}
-    ], cells: [
-        {x: 40, y: 40, r: 0}, {x: 260, y: 260, r: 1}, {x: 180, y: 340, r: 0}, {x: 180, y: 155, r: 3}, {x: 20, y: 180, r: 0}
-    ]}
-};
-
-function getSVG(type) {
-    if(type === 'L') return '<path d="M20 5 V20 H35" />';
-    if(type === 'T') return '<path d="M5 20 H35 M20 20 V5" />';
-    if(type === 'CROSS') return '<path d="M20 5 V35 M5 20 H35" />';
-    if(type === 'DOUBLE_L') return '<path d="M5 20 A15 15 0 0 1 20 5 M20 35 A15 15 0 0 0 35 20" />';
-}
-
-function loadLevel(lv) {
-    currentLevel = lv;
-    document.getElementById('level-title').innerText = `STAGE ${lv}`;
-    document.getElementById('prevBtn').disabled = lv === 1;
-    document.getElementById('nextBtn').disabled = lv === 3;
-    
-    // 清除舊元素
+function initGame(lv) {
+    level = lv;
+    document.getElementById('lv-name').innerText = `STAGE ${lv}`;
     const board = document.getElementById('board');
-    board.querySelectorAll('.knob, .cell').forEach(el => el.remove());
-    
-    const config = levelConfigs[lv];
-    nodes = config.nodes.map(n => ({
-        ...n, rot: Math.floor(Math.random()*4)*90, lit: false
-    }));
-    cells = config.cells.map(c => ({ ...c, lit: false }));
+    board.querySelectorAll('.knob, .cell').forEach(e => e.remove());
 
-    nodes.forEach((n, i) => {
+    // 關卡配置：x, y 為相對座標，type 為類型，ring 為所在圈層
+    const configs = {
+        1: { goal: 3, nodes: [{x:180, y:50, t:'T', ring:0}, {x:275, y:190, t:'L', ring:1}], cells: [{x:40, y:190, ring:0}, {x:180, y:95, ring:1}, {x:320, y:190, ring:0}] },
+        2: { goal: 4, nodes: [{x:180, y:50, t:'T', ring:0}, {x:180, y:140, t:'T', ring:1}, {x:180, y:235, t:'L', ring:2}], cells: [{x:40, y:40, ring:0}, {x:275, y:95, ring:1}, {x:180, y:330, ring:0}, {x:125, y:190, ring:2}] },
+        3: { goal: 5, nodes: [{x:180, y:50, t:'T', ring:0}, {x:275, y:190, t:'DOUBLE_L', ring:1}, {x:180, y:235, t:'T', ring:2}, {x:180, y:190, t:'CROSS', ring:3}], cells: [{x:40, y:40, ring:0}, {x:320, y:330, ring:0}, {x:180, y:95, ring:1}, {x:180, y:165, ring:2}, {x:180, y:215, ring:3}] }
+    };
+
+    const cfg = configs[lv];
+    nodes = cfg.nodes.map(n => {
         const div = document.createElement('div');
         div.className = 'knob';
-        div.style.left = (n.x - 20) + 'px';
-        div.style.top = (n.y - 20) + 'px';
-        div.style.transform = `rotate(${n.rot}deg)`;
+        div.style.left = (n.x - 22) + 'px';
+        div.style.top = (n.y - 22) + 'px';
+        const rot = Math.floor(Math.random()*4)*90;
+        div.style.transform = `rotate(${rot}deg)`;
         div.innerHTML = `<svg viewBox="0 0 40 40">${getSVG(n.t)}</svg>`;
         div.onclick = () => { n.rot = (n.rot + 90) % 360; div.style.transform = `rotate(${n.rot}deg)`; update(); };
-        n.el = div;
         board.appendChild(div);
+        return { ...n, rot, el: div };
     });
 
-    cells.forEach(c => {
+    cells = cfg.cells.map(c => {
         const div = document.createElement('div');
         div.className = 'cell';
-        div.style.left = (c.x - 8) + 'px';
-        div.style.top = (c.y - 8) + 'px';
-        c.el = div;
+        div.style.left = (c.x - 7) + 'px';
+        div.style.top = (c.y - 7) + 'px';
         board.appendChild(div);
+        return { ...c, el: div, lit: false };
     });
     update();
 }
 
+function getSVG(t) {
+    if(t === 'L') return '<path d="M20 5 V20 H35" />';
+    if(t === 'T') return '<path d="M5 20 H35 M20 20 V5" />';
+    if(t === 'CROSS') return '<path d="M20 5 V35 M5 20 H35" />';
+    if(t === 'DOUBLE_L') return '<path d="M5 20 A15 15 0 0 1 20 5 M20 35 A15 15 0 0 0 35 20" />';
+}
+
 function update() {
-    const config = levelConfigs[currentLevel];
-    // 電力傳導邏輯：由外向內
-    let powerByRing = [true]; // Ring 0 預設有電
+    // 嚴格傳導邏輯
+    let powerByRing = [true, false, false, false]; 
     
-    // 判斷按鈕是否導通
-    nodes.forEach((n, i) => {
-        let isPowered = powerByRing[n.r] || false;
-        // 核心邏輯：如果 T 向下(180)則下一圈通電
-        if (n.t === 'T' && n.r === 0 && n.rot === 180) powerByRing[1] = true;
-        if (n.t === 'T' && n.r === 1 && n.rot === 180) powerByRing[2] = true;
-        if (n.t === 'DOUBLE_L' && n.rot % 180 === 0) powerByRing[2] = true; // 雙L轉向
-        n.lit = isPowered;
-        n.el.classList.toggle('lit', isPowered);
-    });
+    // T按鈕邏輯：如果從上方進來，T必須開口朝上 (rot 180時開口向下對接下圈)
+    if(nodes[0].rot === 180) powerByRing[1] = true;
+    if(level >= 2 && nodes[1].ring === 1 && nodes[1].rot === 180 && powerByRing[1]) powerByRing[2] = true;
+    if(level >= 3 && nodes[2].ring === 2 && nodes[2].rot === 180 && powerByRing[2]) powerByRing[3] = true;
 
-    let count = 0;
+    let litCount = 0;
     cells.forEach(c => {
-        c.lit = powerByRing[c.r] || false;
+        c.lit = powerByRing[c.ring];
         c.el.classList.toggle('lit', c.lit);
-        if(c.lit) count++;
+        if(c.lit) litCount++;
     });
 
-    document.getElementById('stat').innerText = `${count} / ${config.goal}`;
+    nodes.forEach(n => {
+        n.powered = powerByRing[n.ring];
+        n.el.classList.toggle('powered', n.powered);
+    });
+
+    document.getElementById('counter').innerText = `${litCount} / ${level+2}`;
     draw(powerByRing);
 }
 
 function draw(pbr) {
     const ctx = document.getElementById('cvs').getContext('2d');
-    ctx.clearRect(0, 0, 360, 360);
-    const config = levelConfigs[currentLevel];
+    ctx.clearRect(0, 0, 360, 380);
     
-    rings.slice(0, config.rings).forEach((r, i) => {
+    // 繪製背景軌道與橋接線
+    ringRadius.forEach((r, i) => {
+        if(i > level) return;
         ctx.setLineDash([5, 5]);
-        ctx.strokeStyle = '#15251a';
-        ctx.strokeRect(180-r, 180-r, r*2, r*2);
+        ctx.strokeStyle = '#1a2a20';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(180-r, 190-r, r*2, r*2);
         
+        // 畫出圈與圈之間的橋接線 (垂直線)
+        if(i < level) {
+            ctx.beginPath();
+            ctx.moveTo(180, 190-ringRadius[i]);
+            ctx.lineTo(180, 190-ringRadius[i+1]);
+            ctx.stroke();
+        }
+
+        // 通電效果
         if(pbr[i]) {
             ctx.setLineDash([]);
-            ctx.strokeStyle = '#3cf08d';
+            ctx.strokeStyle = varColor('--green');
             ctx.lineWidth = 3;
             ctx.shadowBlur = 10;
-            ctx.shadowColor = '#3cf08d';
-            ctx.strokeRect(180-r, 180-r, r*2, r*2);
+            ctx.shadowColor = varColor('--green');
+            ctx.strokeRect(180-r, 190-r, r*2, r*2);
+            // 橋接線通電
+            if(pbr[i+1]) {
+                ctx.beginPath();
+                ctx.moveTo(180, 190-ringRadius[i]);
+                ctx.lineTo(180, 190-ringRadius[i+1]);
+                ctx.stroke();
+            }
             ctx.shadowBlur = 0;
         }
     });
 }
+function varColor(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
 
-function changeLevel(d) { loadLevel(currentLevel + d); }
-
-loadLevel(1);
+initGame(1);
 </script>
 </body>
 </html>
