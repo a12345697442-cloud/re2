@@ -3,208 +3,161 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PCB NODE INSERTION</title>
+    <title>PCB LOGIC TERMINAL</title>
     <style>
-        :root { --green: #3cf08d; --bg: #050605; --dark: #1a251e; }
-        body { background: var(--bg); color: var(--green); font-family: monospace; display: flex; flex-direction: column; align-items: center; margin: 0; }
-        
-        #ui { width: 340px; margin-top: 20px; display: flex; justify-content: space-between; border-bottom: 1px solid var(--dark); padding: 5px; }
-        #board { position: relative; width: 360px; height: 360px; background: #000; border: 2px solid #222; margin-top: 10px; }
+        :root { --green: #3cf08d; --bg: #050806; --wire: #1a251e; }
+        body { background: var(--bg); color: var(--green); font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; margin: 0; }
+        #ui { width: 360px; margin-top: 20px; display: flex; justify-content: space-between; padding: 10px; border-bottom: 2px solid var(--wire); }
+        #board { position: relative; width: 360px; height: 380px; background: #000; border: 2px solid #333; margin-top: 15px; }
         canvas { position: absolute; top: 0; left: 0; z-index: 5; pointer-events: none; }
-
-        /* 插槽 */
+        
         .socket {
             position: absolute; width: 44px; height: 44px; background: #111; 
-            border: 2px dashed #444; border-radius: 4px; z-index: 10;
-            display: flex; justify-content: center; align-items: center; cursor: pointer;
+            border: 2px dashed #444; z-index: 10; cursor: pointer;
+            display: flex; justify-content: center; align-items: center;
         }
-        .socket.filled { border-style: solid; border-color: #666; }
-        .socket svg { width: 34px; height: 34px; stroke: #444; stroke-width: 5; fill: none; }
+        .socket.filled { border: 2px solid #555; }
+        .socket svg { width: 34px; height: 34px; stroke: #333; stroke-width: 5; fill: none; transition: 0.3s; }
         .socket.powered svg { stroke: var(--green); filter: drop-shadow(0 0 5px var(--green)); }
-
-        /* 電源目標 */
-        .cell {
-            position: absolute; width: 14px; height: 14px; border: 2px solid #333;
-            border-radius: 50%; z-index: 50; background: #000;
-        }
+        
+        .cell { position: absolute; width: 14px; height: 14px; border: 2px solid #333; border-radius: 50%; z-index: 50; background: #000; }
         .cell.lit { background: var(--green); border-color: #fff; box-shadow: 0 0 15px var(--green); }
-
-        /* 插件選單 */
-        #inventory { 
-            width: 340px; margin-top: 20px; display: flex; gap: 10px; 
-            background: #111; padding: 15px; border: 1px solid var(--dark);
-        }
-        .inv-item {
-            width: 50px; height: 50px; border: 2px solid #444; display: flex;
-            flex-direction: column; align-items: center; justify-content: center;
-            cursor: pointer; background: #000;
-        }
-        .inv-item.selected { border-color: var(--green); background: var(--dark); }
-        .inv-item svg { width: 25px; height: 25px; stroke: var(--green); stroke-width: 4; fill: none; }
-        .inv-count { font-size: 10px; margin-top: 2px; }
+        
+        #inv { width: 360px; margin-top: 15px; display: flex; gap: 8px; background: #111; padding: 10px; box-sizing: border-box; }
+        .item { width: 55px; height: 55px; border: 2px solid #444; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; }
+        .item.active { border-color: var(--green); background: #0a150f; }
+        .item svg { width: 25px; height: 25px; stroke: var(--green); stroke-width: 4; fill: none; }
+        .count { font-size: 10px; margin-top: 2px; }
     </style>
 </head>
 <body>
 
 <div id="ui">
-    <div>STAGE: <span style="color:#ffcc00">INSERTION MODE</span></div>
-    <div id="stat">NODES: 0 / 4</div>
+    <div id="stage-info">STAGE 1</div>
+    <div id="stat">STATUS: 0 / 3</div>
 </div>
 
 <div id="board">
-    <canvas id="cvs" width="360" height="360"></canvas>
-    <div style="position:absolute; left:165px; top:-5px; font-size:10px;">[POWER IN]</div>
+    <canvas id="cvs" width="360" height="380"></canvas>
+    <div style="position:absolute; left:165px; top:-5px; font-size:10px; color:var(--green);">[POWER]</div>
 </div>
 
-<div id="inventory">
-    <div class="inv-item" onclick="selectPart('L')" id="partL">
-        <svg viewBox="0 0 40 40"><path d="M20 5 V20 H35" /></svg>
-        <span class="inv-count">L (x2)</span>
-    </div>
-    <div class="inv-item" onclick="selectPart('T')" id="partT">
-        <svg viewBox="0 0 40 40"><path d="M5 20 H35 M20 20 V5" /></svg>
-        <span class="inv-count">T (x1)</span>
-    </div>
-    <div class="inv-item" onclick="selectPart('CROSS')" id="partX">
-        <svg viewBox="0 0 40 40"><path d="M5 20 H35 M20 5 V35" /></svg>
-        <span class="inv-count">X (x1)</span>
-    </div>
-    <button style="margin-left:auto; background:#000; border:1px solid #666; color:#888;" onclick="resetBoard()">RESET</button>
+<div id="inv">
+    <div class="item" onclick="selP('L')" id="iL"><svg viewBox="0 0 40 40"><path d="M20 5 V20 H35" /></svg><span class="count">L:2</span></div>
+    <div class="item" onclick="selP('T')" id="iT"><svg viewBox="0 0 40 40"><path d="M5 20 H35 M20 20 V5" /></svg><span class="count">T:1</span></div>
+    <div class="item" onclick="selP('X')" id="iX"><svg viewBox="0 0 40 40"><path d="M5 20 H35 M20 5 V35" /></svg><span class="count">X:1</span></div>
+    <div class="item" onclick="selP('DL')" id="iDL"><svg viewBox="0 0 40 40"><path d="M5 20 A15 15 0 0 1 20 5 M20 35 A15 15 0 0 0 35 20" /></svg><span class="count">DL:1</span></div>
+    <button onclick="reset()" style="margin-left:auto; background:#000; color:#666; border:1px solid #444;">CLEAR</button>
 </div>
 
 <script>
 const board = document.getElementById('board');
 const cvs = document.getElementById('cvs');
 const ctx = cvs.getContext('2d');
+let sel = null;
+let curLv = 1;
+let pCount = {L:0, T:0, X:0, DL:0};
+let sockets = [], cells = [], wires = [];
 
-let selectedPart = null;
-let partsCount = { L: 2, T: 1, CROSS: 1 };
+const levels = {
+    1: { goal:3, inv:{L:2, T:1, X:0, DL:0}, s:[{x:180,y:80},{x:80,y:200},{x:280,y:200}], c:[{x:30,y:200},{x:180,y:330},{x:330,y:200}], w:[{f:[180,0],t:[180,80],p:true},{f:[180,80],t:[80,80],s:0,d:'L'},{f:[80,80],t:[80,200],s:0,d:'L'},{f:[180,80],t:[280,80],s:0,d:'R'},{f:[280,80],t:[280,200],s:0,d:'R'},{f:[180,80],t:[180,330],s:0,d:'D'},{f:[80,200],t:[30,200],s:1,d:'L'},{f:[280,200],t:[330,200],s:2,d:'R'}] },
+    2: { goal:4, inv:{L:2, T:2, X:1, DL:0}, s:[{x:180,y:80},{x:180,y:200},{x:80,y:200},{x:280,y:200}], c:[{x:30,y:200},{x:330,y:200},{x:80,y:300},{x:280,y:300}], w:[{f:[180,0],t:[180,80],p:true},{f:[180,80],t:[180,200],s:0,d:'D'},{f:[180,200],t:[80,200],s:1,d:'L'},{f:[180,200],t:[280,200],s:1,d:'R'},{f:[80,200],t:[80,300],s:2,d:'D'},{f:[80,200],t:[30,200],s:2,d:'L'},{f:[280,200],t:[280,300],s:3,d:'D'},{f:[280,200],t:[330,200],s:3,d:'R'}] },
+    3: { goal:5, inv:{L:1, T:1, X:1, DL:1}, s:[{x:180,y:80},{x:180,y:200},{x:80,y:200}], c:[{x:30,y:200},{x:80,y:300},{x:180,y:330},{x:280,y:200},{x:330,y:200}], w:[{f:[180,0],t:[180,80],p:true},{f:[180,80],t:[80,80],s:0,d:'L'},{f:[80,80],t:[80,200],s:0,d:'L'},{f:[180,80],t:[280,80],s:0,d:'R'},{f:[280,80],t:[280,200],s:0,d:'R'},{f:[180,200],t:[180,330],s:1,d:'D'},{f:[180,200],t:[80,200],s:1,d:'L'},{f:[80,200],t:[30,200],s:2,d:'L'},{f:[80,200],t:[80,300],s:2,d:'D'}] }
+};
 
-const sockets = [
-    { id: 0, x: 180, y: 80, part: null, rot: 0 },
-    { id: 1, x: 80,  y: 180, part: null, rot: 0 },
-    { id: 2, x: 280, y: 180, part: null, rot: 0 }
-];
+function selP(t){ if(pCount[t]>0){ sel=t; document.querySelectorAll('.item').forEach(e=>e.classList.remove('active')); document.getElementById('i'+(t==='CROSS'?'X':t)).classList.add('active'); } }
 
-const cells = [
-    { x: 30, y: 180, r: 1 }, { x: 180, y: 280, r: 0 }, { x: 330, y: 180, r: 2 }
-];
-
-const wires = [
-    { from: [180, 0], to: [180, 80], powered: true },
-    { from: [180, 80], to: [80, 80], pId: 0, req: 'left' },
-    { from: [80, 80], to: [80, 180], pId: 0, req: 'left' },
-    { from: [180, 80], to: [280, 80], pId: 0, req: 'right' },
-    { from: [280, 80], to: [280, 180], pId: 0, req: 'right' },
-    { from: [180, 80], to: [180, 280], pId: 0, req: 'down' },
-    { from: [80, 180], to: [30, 180], pId: 1, req: 'left' },
-    { from: [280, 180], to: [330, 180], pId: 2, req: 'right' }
-];
-
-function selectPart(type) {
-    if (partsCount[type] <= 0) return;
-    selectedPart = type;
-    document.querySelectorAll('.inv-item').forEach(el => el.classList.remove('selected'));
-    document.getElementById('part' + (type==='CROSS'?'X':type)).classList.add('selected');
-}
-
-function init() {
-    sockets.forEach(s => {
-        const div = document.createElement('div');
-        div.className = 'socket';
-        div.style.left = (s.x - 22) + 'px';
-        div.style.top = (s.y - 22) + 'px';
-        div.onclick = () => handleSocketClick(s, div);
-        s.el = div;
-        board.appendChild(div);
+function initStage(lv){
+    curLv=lv; pCount={...levels[lv].inv}; sockets=[]; cells=[]; wires=JSON.parse(JSON.stringify(levels[lv].w));
+    board.querySelectorAll('.socket, .cell').forEach(e=>e.remove());
+    document.getElementById('stage-info').innerText=`STAGE ${lv}`;
+    levels[lv].s.forEach((pos,i)=>{
+        const div=document.createElement('div'); div.className='socket'; div.style.left=(pos.x-22)+'px'; div.style.top=(pos.y-22)+'px';
+        const sObj={id:i, x:pos.x, y:pos.y, type:null, rot:0, el:div};
+        div.onclick=()=>{ 
+            if(!sObj.type && sel){ sObj.type=sel; pCount[sel]--; sel=null; }
+            else if(sObj.type){ sObj.rot=(sObj.rot+90)%360; }
+            update();
+        };
+        sockets.push(sObj); board.appendChild(div);
     });
-
-    cells.forEach(c => {
-        const div = document.createElement('div');
-        div.className = 'cell';
-        div.style.left = (c.x - 7) + 'px';
-        div.style.top = (c.y - 7) + 'px';
-        c.el = div;
-        board.appendChild(div);
+    levels[lv].c.forEach(pos=>{
+        const div=document.createElement('div'); div.className='cell'; div.style.left=(pos.x-7)+'px'; div.style.top=(pos.y-7)+'px';
+        cells.push({x:pos.x, y:pos.y, el:div}); board.appendChild(div);
     });
     update();
 }
 
-function handleSocketClick(s, el) {
-    if (!s.part && selectedPart) {
-        s.part = selectedPart;
-        partsCount[selectedPart]--;
-        selectedPart = null;
-        updateUI();
-    } else if (s.part) {
-        s.rot = (s.rot + 90) % 360;
+function update(){
+    // 核心電力邏輯
+    wires.forEach(w=> { if(w.s!==undefined) w.p=false; });
+    let changed=true;
+    while(changed){
+        changed=false;
+        wires.forEach(w=>{
+            if(w.p) return;
+            // 找到這條線的起點是否有電
+            let sourcePowered = wires.some(sw=>sw.p && sw.t[0]===w.f[0] && sw.t[1]===w.f[1]);
+            if(sourcePowered && w.s!==undefined){
+                const s = sockets[w.s];
+                if(s.type==='T'){
+                    if(w.d==='L' && (s.rot===0||s.rot===180||s.rot===270)) w.p=true;
+                    if(w.d==='R' && (s.rot===0||s.rot===90||s.rot===180)) w.p=true;
+                    if(w.d==='D' && (s.rot===0||s.rot===90||s.rot===270)) w.p=true;
+                } else if(s.type==='L'){
+                    if(w.d==='L' && s.rot===270) w.p=true;
+                    if(w.d==='R' && s.rot===90) w.p=true;
+                    if(w.d==='D' && s.rot===180) w.p=true;
+                } else if(s.type==='X') w.p=true;
+                else if(s.type==='DL'){
+                    if(w.d==='R' && s.rot===0) w.p=true; // 上通右
+                    if(w.d==='L' && s.rot===0) w.p=false; // 下通左(此處電力從上來)
+                }
+                if(w.p) changed=true;
+            }
+        });
     }
-    update();
-}
-
-function update() {
-    // 傳導邏輯
-    wires.forEach(w => {
-        if (w.pId === undefined) return;
-        const s = sockets[w.pId];
-        w.powered = false;
-        if (s.part) {
-            // 簡化邏輯：如果有零件且轉向正確則導通
-            if (s.part === 'T' && (s.rot === 180 || s.rot === 90)) w.powered = true;
-            if (s.part === 'CROSS') w.powered = true;
-            if (s.part === 'L' && s.rot === 270 && w.req === 'left') w.powered = true;
-        }
+    
+    let lit=0;
+    cells.forEach(c=>{
+        const isOn=wires.some(w=>w.p && w.t[0]===c.x && w.t[1]===c.y);
+        c.el.classList.toggle('lit', isOn); if(isOn) lit++;
     });
-
-    // 更新視覺
-    sockets.forEach(s => {
-        if (s.part) {
+    sockets.forEach(s=>{
+        if(s.type){
             s.el.classList.add('filled');
-            s.el.classList.toggle('powered', s.id === 0 || wires.some(w => w.powered && w.to[0] === s.x));
-            s.el.style.transform = `rotate(${s.rot}deg)`;
-            s.el.innerHTML = `<svg viewBox="0 0 40 40">${getSVG(s.part)}</svg>`;
+            s.el.innerHTML=`<svg viewBox="0 0 40 40" style="transform:rotate(${s.rot}deg)">${getSVG(s.type)}</svg>`;
+            const hasP = (s.id===0) || wires.some(w=>w.p && w.t[0]===s.x && w.t[1]===s.y);
+            s.el.classList.toggle('powered', hasP);
         }
     });
-
-    let score = 0;
-    cells.forEach(c => {
-        const lit = wires.some(w => w.powered && w.to[0] === c.x && w.to[1] === c.y);
-        c.el.classList.toggle('lit', lit);
-        if (lit) score++;
-    });
-    document.getElementById('stat').innerText = `NODES: ${score} / 3`;
-    draw();
+    document.getElementById('stat').innerText=`STATUS: ${lit} / ${levels[curLv].goal}`;
+    document.getElementById('iL').querySelector('.count').innerText=`L:${pCount.L}`;
+    document.getElementById('iT').querySelector('.count').innerText=`T:${pCount.T}`;
+    document.getElementById('iX').querySelector('.count').innerText=`X:${pCount.X}`;
+    document.getElementById('iDL').querySelector('.count').innerText=`DL:${pCount.DL}`;
+    drawWires();
+    if(lit>=levels[curLv].goal && curLv<3) setTimeout(()=> {if(confirm('STAGE CLEAR! NEXT?')) initStage(curLv+1);}, 500);
 }
 
-function getSVG(t) {
-    if(t === 'L') return '<path d="M20 5 V20 H35" />';
-    if(t === 'T') return '<path d="M5 20 H35 M20 20 V5" />';
-    return '<path d="M5 20 H35 M20 5 V35" />';
+function getSVG(t){
+    if(t==='L') return '<path d="M20 5 V20 H35" />';
+    if(t==='T') return '<path d="M5 20 H35 M20 20 V35" />';
+    if(t==='X') return '<path d="M5 20 H35 M20 5 V35" />';
+    if(t==='DL') return '<path d="M20 5 A15 15 0 0 1 35 20 M5 20 A15 15 0 0 0 20 35" />';
 }
 
-function updateUI() {
-    document.querySelectorAll('.inv-item').forEach(el => el.classList.remove('selected'));
-    document.getElementById('partL').querySelector('.inv-count').innerText = `L (x${partsCount.L})`;
-    document.getElementById('partT').querySelector('.inv-count').innerText = `T (x${partsCount.T})`;
-    document.getElementById('partX').querySelector('.inv-count').innerText = `X (x${partsCount.CROSS})`;
-}
-
-function resetBoard() {
-    sockets.forEach(s => { s.part = null; s.rot = 0; s.el.innerHTML = ''; s.el.classList.remove('filled','powered'); });
-    partsCount = { L: 2, T: 1, CROSS: 1 };
-    updateUI(); update();
-}
-
-function draw() {
-    ctx.clearRect(0,0,360,360);
-    wires.forEach(w => {
-        ctx.beginPath(); ctx.moveTo(w.from[0], w.from[1]); ctx.lineTo(w.to[0], w.to[1]);
-        ctx.strokeStyle = w.powered ? '#3cf08d' : '#222';
-        ctx.lineWidth = 4; ctx.stroke();
+function drawWires(){
+    ctx.clearRect(0,0,360,380);
+    wires.forEach(w=>{
+        ctx.beginPath(); ctx.moveTo(w.f[0],w.f[1]); ctx.lineTo(w.t[0],w.t[1]);
+        ctx.strokeStyle=w.p?'#3cf08d':'#1a251e'; ctx.lineWidth=w.p?4:2;
+        if(w.p){ ctx.shadowBlur=8; ctx.shadowColor='#3cf08d'; }
+        ctx.stroke(); ctx.shadowBlur=0;
     });
 }
-
-init();
+function reset(){ initStage(curLv); }
+initStage(1);
 </script>
 </body>
 </html>
