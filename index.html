@@ -2,148 +2,151 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RE4 PCB PRECISION REPAIR</title>
+    <title>PCB DYNAMIC LOGIC TERMINAL</title>
     <style>
         :root { --green: #3cf08d; --bg: #050806; --wire: #1a251e; }
         body { background: var(--bg); color: var(--green); font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; margin: 0; }
         #ui { width: 360px; margin-top: 20px; display: flex; justify-content: space-between; padding: 10px; border-bottom: 2px solid var(--wire); }
-        #board { position: relative; width: 360px; height: 380px; background: #000; border: 2px solid #333; margin-top: 15px; }
+        #board { position: relative; width: 360px; height: 400px; background: #000; border: 2px solid #333; margin-top: 15px; }
         canvas { position: absolute; top: 0; left: 0; z-index: 5; pointer-events: none; }
-        
-        .socket {
-            position: absolute; width: 44px; height: 44px; background: #111; 
-            border: 2px dashed #444; z-index: 10; cursor: pointer;
-            display: flex; justify-content: center; align-items: center;
-        }
+        .socket { position: absolute; width: 44px; height: 44px; background: #111; border: 2px dashed #444; z-index: 10; cursor: pointer; display: flex; justify-content: center; align-items: center; }
         .socket.filled { border: 2px solid #555; }
-        .socket svg { width: 40px; height: 40px; stroke: #333; stroke-width: 4; fill: none; transition: 0.2s; }
+        .socket svg { width: 36px; height: 36px; stroke: #333; stroke-width: 5; fill: none; transition: 0.1s; }
         .socket.powered svg { stroke: var(--green); filter: drop-shadow(0 0 5px var(--green)); }
-        
         .cell { position: absolute; width: 14px; height: 14px; border: 2px solid #333; border-radius: 50%; z-index: 50; background: #000; }
         .cell.lit { background: var(--green); border-color: #fff; box-shadow: 0 0 15px var(--green); }
-        
         #inv { width: 360px; margin-top: 15px; display: flex; gap: 8px; background: #111; padding: 10px; box-sizing: border-box; }
         .item { width: 55px; height: 55px; border: 2px solid #444; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; }
         .item.active { border-color: var(--green); background: #0a150f; }
         .item svg { width: 25px; height: 25px; stroke: var(--green); stroke-width: 3; fill: none; }
-        .count { font-size: 10px; margin-top: 2px; }
-        #dl-item { display: none; } /* 第三關才顯示 */
     </style>
 </head>
 <body>
 
 <div id="ui">
     <div id="stage-info">STAGE 1</div>
-    <div id="stat">STATUS: 0 / 3</div>
+    <div id="stat">NODES: 0 / 3</div>
 </div>
 
 <div id="board">
-    <canvas id="cvs" width="360" height="380"></canvas>
-    <div style="position:absolute; left:165px; top:-10px; font-size:10px; color:var(--green);">[POWER SOURCE]</div>
+    <canvas id="cvs" width="360" height="400"></canvas>
 </div>
 
 <div id="inv">
-    <div class="item" onclick="selP('L')" id="iL"><svg viewBox="0 0 40 40"><path d="M20 5 V20 H35" /></svg><span class="count">L:0</span></div>
-    <div class="item" onclick="selP('T')" id="iT"><svg viewBox="0 0 40 40"><path d="M5 20 H35 M20 20 V35" /></svg><span class="count">T:0</span></div>
-    <div class="item" onclick="selP('X')" id="iX"><svg viewBox="0 0 40 40"><path d="M5 20 H35 M20 5 V35" /></svg><span class="count">X:0</span></div>
-    <div class="item" id="dl-item" onclick="selP('DL')" id="iDL"><svg viewBox="0 0 40 40"><path d="M20 5 A15 15 0 0 1 35 20 M5 20 A15 15 0 0 0 20 35" /></svg><span class="count">DL:0</span></div>
-    <button onclick="reset()" style="margin-left:auto; background:#000; color:#888; border:1px solid #444;">RESET</button>
+    <div class="item" onclick="selP('L')" id="iL"><svg viewBox="0 0 40 40"><path d="M20 5 V20 H35" /></svg></div>
+    <div class="item" onclick="selP('T')" id="iT"><svg viewBox="0 0 40 40"><path d="M5 20 H35 M20 20 V35" /></svg></div>
+    <div class="item" onclick="selP('X')" id="iX"><svg viewBox="0 0 40 40"><path d="M5 20 H35 M20 5 V35" /></svg></div>
+    <div class="item" id="dl-item" style="display:none" onclick="selP('DL')"><svg viewBox="0 0 40 40"><path d="M20 5 A15 15 0 0 1 35 20 M5 20 A15 15 0 0 0 20 35" /></svg></div>
+    <button onclick="reset()" style="margin-left:auto; background:#000; color:#888;">RESET</button>
 </div>
 
 <script>
 const cvs = document.getElementById('cvs');
 const ctx = cvs.getContext('2d');
-let sel = null;
-let curLv = 1;
-let pCount = {L:0, T:0, X:0, DL:0};
+let sel = null, curLv = 1;
 let sockets = [], cells = [], wires = [];
 
-const levels = {
-    1: { goal:3, inv:{L:3, T:1, X:0, DL:0}, s:[{x:180,y:80},{x:80,y:180},{x:280,y:180}], c:[{x:30,y:180},{x:180,y:300},{x:330,y:180}], w:[{f:[180,0],t:[180,80],p:true},{f:[180,80],t:[80,80],s:0,d:'L'},{f:[80,80],t:[80,180],s:0,d:'L'},{f:[180,80],t:[280,80],s:0,d:'R'},{f:[280,80],t:[280,180],s:0,d:'R'},{f:[180,80],t:[180,300],s:0,d:'D'},{f:[80,180],t:[30,180],s:1,d:'L'},{f:[280,180],t:[330,180],s:2,d:'R'}] },
-    2: { goal:4, inv:{L:2, T:2, X:1, DL:0}, s:[{x:180,y:80},{x:180,y:200},{x:60,y:200},{x:300,y:200}], c:[{x:30,y:200},{x:180,y:330},{x:330,y:200},{x:60,y:300}], w:[{f:[180,0],t:[180,80],p:true},{f:[180,80],t:[180,200],s:0,d:'D'},{f:[180,200],t:[60,200],s:1,d:'L'},{f:[180,200],t:[300,200],s:1,d:'R'},{f:[180,200],t:[180,330],s:1,d:'D'},{f:[60,200],t:[30,200],s:2,d:'L'},{f:[60,200],t:[60,300],s:2,d:'D'},{f:[300,200],t:[330,200],s:3,d:'R'}] },
-    3: { goal:5, inv:{L:1, T:1, X:1, DL:1}, s:[{x:180,y:80},{x:180,y:200},{x:280,y:200}], c:[{x:180,y:140},{x:80,y:80},{x:280,y:300},{x:330,y:200},{x:180,y:330}], w:[{f:[180,0],t:[180,80],p:true},{f:[180,80],t:[180,140],s:0,d:'D'},{f:[180,80],t:[80,80],s:0,d:'L'},{f:[180,80],t:[180,200],s:0,d:'D'},{f:[180,200],t:[280,200],s:1,d:'R'},{f:[280,200],t:[330,200],s:2,d:'R'},{f:[280,200],t:[280,300],s:2,d:'D'},{f:[180,200],t:[180,330],s:1,d:'D'}] }
+// 端口定義：0:上, 1:右, 2:下, 3:左
+const COMP_LOGIC = {
+    'L': (r) => { 
+        const base = [[0,1], [1,2], [2,3], [3,0]]; 
+        return base[r/90];
+    },
+    'T': (r) => {
+        const base = [[1,2,3], [0,1,2], [0,1,3], [0,2,3]]; // 0:腳朝下通左下右, 90:腳朝左通上右下...
+        return base[r/90];
+    },
+    'X': (r) => [0,1,2,3],
+    'DL': (r) => {
+        const base = [[[0,1],[2,3]], [[1,2],[3,0]]]; // 雙L：一組通上右，一組通下左
+        return base[(r/90)%2];
+    }
 };
 
-function selP(t){ if(pCount[t]>0){ sel=t; document.querySelectorAll('.item').forEach(e=>e.classList.remove('active')); document.getElementById('i'+(t==='CROSS'?'X':t==='DL'?'DL':t)).classList.add('active'); } }
+const levels = {
+    1: { goal:3, inv:{L:3, T:1, X:0, DL:0}, 
+        s:[{x:180,y:80},{x:80,y:180},{x:280,y:180}],
+        c:[{x:30,y:180},{x:180,y:300},{x:330,y:180}],
+        w:[
+            {f:[180,0], t:[180,80], powerSource:true}, // 主電源入
+            {f:[180,80], t:[80,80], sid:0, portF:3}, // 從s0的左邊出
+            {f:[80,80], t:[80,180], sid:1, portT:0}, // 進入s1的上邊
+            {f:[180,80], t:[280,80], sid:0, portF:1}, // 從s0的右邊出
+            {f:[280,80], t:[280,180], sid:2, portT:0}, // 進入s2的上邊
+            {f:[180,80], t:[180,300], sid:0, portF:2}, // 從s0的下邊出
+            {f:[80,180], t:[30,180], sid:1, portF:3}, // 從s1的左邊出
+            {f:[280,180], t:[330,180], sid:2, portF:1} // 從s2的右邊出
+        ]
+    }
+    // 更多關卡可在此擴展
+};
+
+function selP(t){ sel=t; document.querySelectorAll('.item').forEach(i=>i.classList.toggle('active',i.id==='i'+(t==='CROSS'?'X':t))); }
 
 function initStage(lv){
-    curLv=lv; pCount={...levels[lv].inv}; sockets=[]; cells=[]; wires=JSON.parse(JSON.stringify(levels[lv].w));
-    document.getElementById('dl-item').style.display = (lv === 3) ? 'flex' : 'none';
-    document.getElementById('board').querySelectorAll('.socket, .cell').forEach(e=>e.remove());
-    document.getElementById('stage-info').innerText=`STAGE ${lv}`;
-    
-    levels[lv].s.forEach((pos,i)=>{
-        const div=document.createElement('div'); div.className='socket'; div.style.left=(pos.x-22)+'px'; div.style.top=(pos.y-22)+'px';
-        const sObj={id:i, x:pos.x, y:pos.y, type:null, rot:0, el:div};
-        div.onclick=()=>{ 
-            if(!sObj.type && sel){ sObj.type=sel; pCount[sel]--; sel=null; document.querySelectorAll('.item').forEach(e=>e.classList.remove('active')); }
-            else if(sObj.type){ sObj.rot=(sObj.rot+90)%360; }
-            update();
-        };
-        sockets.push(sObj); document.getElementById('board').appendChild(div);
+    curLv=lv; sockets=[]; cells=[]; wires=JSON.parse(JSON.stringify(levels[lv].w));
+    document.getElementById('dl-item').style.display = (lv>=3?'flex':'none');
+    document.getElementById('board').querySelectorAll('.socket,.cell').forEach(e=>e.remove());
+    levels[lv].s.forEach((p,i)=>{
+        const d=document.createElement('div'); d.className='socket'; d.style.left=(p.x-22)+'px'; d.style.top=(p.y-22)+'px';
+        const sObj={id:i, x:p.x, y:p.y, type:null, rot:0, el:d};
+        d.onclick=()=>{ if(!sObj.type && sel){ sObj.type=sel; sel=null; } else if(sObj.type){ sObj.rot=(sObj.rot+90)%360; } update(); };
+        sockets.push(sObj); document.getElementById('board').appendChild(d);
     });
-    levels[lv].c.forEach(pos=>{
-        const div=document.createElement('div'); div.className='cell'; div.style.left=(pos.x-7)+'px'; div.style.top=(pos.y-7)+'px';
-        cells.push({x:pos.x, y:pos.y, el:div}); document.getElementById('board').appendChild(div);
+    levels[lv].c.forEach(p=>{
+        const d=document.createElement('div'); d.className='cell'; d.style.left=(p.x-7)+'px'; d.style.top=(p.y-7)+'px';
+        cells.push({x:p.x, y:p.y, el:d}); document.getElementById('board').appendChild(d);
     });
     update();
 }
 
 function update(){
-    wires.forEach(w=> { if(w.s!==undefined) w.p=false; });
-    let iter = 0;
-    while(iter < 10){ // 電力傳遞迭代
-        let changed = false;
+    wires.forEach(w=>w.p=false);
+    let changed = true;
+    while(changed){
+        changed = false;
         wires.forEach(w=>{
             if(w.p) return;
-            let hasIn = (w.f[0]===180 && w.f[1]===0) || wires.some(sw=>sw.p && sw.t[0]===w.f[0] && sw.t[1]===w.f[1]);
-            if(hasIn && w.s!==undefined){
-                const s = sockets[w.s];
-                if(s.type==='T'){
-                    if(w.d==='L' && (s.rot===0 || s.rot===90 || s.rot===180)) w.p=true; // 腳朝下，通左、右、下
-                    if(w.d==='R' && (s.rot===0 || s.rot===180 || s.rot===270)) w.p=true;
-                    if(w.d==='D' && (s.rot===0 || s.rot===90 || s.rot===270)) w.p=true;
-                } else if(s.type==='L'){
-                    // L 精確方向：0:上右, 90:下右, 180:下左, 270:上左
-                    if(w.d==='R' && (s.rot===0 || s.rot===90)) w.p=true;
-                    if(w.d==='D' && (s.rot===90 || s.rot===180)) w.p=true;
-                    if(w.d==='L' && (s.rot===180 || s.rot===270)) w.p=true;
-                } else if(s.type==='X') w.p=true;
-                else if(s.type==='DL'){
-                    // 雙L邏輯：0度時[上連右, 下連左]
-                    if(w.d==='R' && s.rot===0) w.p=true; 
-                    if(w.d==='L' && s.rot===90) w.p=true; // 旋轉90後變為[上連左]
+            // 判斷這條線是否能從起點獲得電力
+            let hasPowerAtStart = w.powerSource || wires.some(sw=>sw.p && sw.t[0]===w.f[0] && sw.t[1]===w.f[1]);
+            
+            if(hasPowerAtStart){
+                // 如果這條線是從某個組件發出的 (portF)
+                if(w.sid !== undefined && w.portF !== undefined){
+                    const s = sockets[w.sid];
+                    if(s.type){
+                        const ports = COMP_LOGIC[s.type](s.rot);
+                        // 1. 檢查電力是否能進入該組件 (必須從反方向端口進入)
+                        // 這裡簡化：假設sid組件本身已被電力觸及
+                        let componentIsPowered = (s.id===0) || wires.some(sw=>sw.p && sw.sid===s.id && sw.portT !== undefined);
+                        if(componentIsPowered){
+                            // 2. 檢查該方向端口是否開啟
+                            if(ports.flat().includes(w.portF)){ w.p=true; changed=true; }
+                        }
+                    }
+                } else if(w.sid !== undefined && w.portT !== undefined){
+                    // 如果這條線是進入某個組件的 (portT)
+                    const s = sockets[w.sid];
+                    if(s.type){
+                        const ports = COMP_LOGIC[s.type](s.rot);
+                        if(ports.flat().includes(w.portT)){ w.p=true; changed=true; }
+                    }
+                } else if(w.sid === undefined){
+                    // 普通導線
+                    w.p=true; changed=true;
                 }
             }
-            if(w.p) changed=true;
         });
-        if(!changed) break;
-        iter++;
     }
-    
-    let lit=0;
-    cells.forEach(c=>{
-        const isOn=wires.some(w=>w.p && w.t[0]===c.x && w.t[1]===c.y);
-        c.el.classList.toggle('lit', isOn); if(isOn) lit++;
-    });
+
     sockets.forEach(s=>{
         if(s.type){
-            s.el.classList.add('filled');
             s.el.innerHTML=`<svg viewBox="0 0 40 40" style="transform:rotate(${s.rot}deg)">${getSVG(s.type)}</svg>`;
-            const isPow = (s.id===0) || wires.some(w=>w.p && w.t[0]===s.x && w.t[1]===s.y);
-            s.el.classList.toggle('powered', isPow);
+            s.el.classList.toggle('powered', wires.some(w=>w.p && w.sid===s.id));
         }
     });
-    document.getElementById('stat').innerText=`STATUS: ${lit} / ${levels[curLv].goal}`;
-    document.getElementById('iL').querySelector('.count').innerText=`L:${pCount.L}`;
-    document.getElementById('iT').querySelector('.count').innerText=`T:${pCount.T}`;
-    document.getElementById('iX').querySelector('.count').innerText=`X:${pCount.X}`;
-    if(curLv===3) document.getElementById('dl-item').querySelector('.count').innerText=`DL:${pCount.DL}`;
-    drawWires();
-    if(lit>=levels[curLv].goal && curLv<3) {
-        setTimeout(()=> {if(confirm('STAGE CLEAR! NEXT?')) initStage(curLv+1);}, 300);
-    }
+    cells.forEach(c=>c.el.classList.toggle('lit', wires.some(w=>w.p && w.t[0]===c.x && w.t[1]===c.y)));
+    draw();
 }
 
 function getSVG(t){
@@ -153,13 +156,12 @@ function getSVG(t){
     if(t==='DL') return '<path d="M20 5 A15 15 0 0 1 35 20 M5 20 A15 15 0 0 0 20 35" />';
 }
 
-function drawWires(){
-    ctx.clearRect(0,0,360,380);
+function draw(){
+    ctx.clearRect(0,0,360,400);
     wires.forEach(w=>{
         ctx.beginPath(); ctx.moveTo(w.f[0],w.f[1]); ctx.lineTo(w.t[0],w.t[1]);
         ctx.strokeStyle=w.p?'#3cf08d':'#1a251e'; ctx.lineWidth=w.p?4:2;
-        if(w.p){ ctx.shadowBlur=10; ctx.shadowColor='#3cf08d'; }
-        ctx.stroke(); ctx.shadowBlur=0;
+        ctx.stroke();
     });
 }
 function reset(){ initStage(curLv); }
