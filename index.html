@@ -2,140 +2,174 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>電路解謎遊戲</title>
+    <title>電路解謎：大型電網</title>
     <style>
-        body { background: #1a1a1a; color: white; text-align: center; font-family: sans-serif; }
-        canvas { background: #fdfdfd; cursor: pointer; border: 5px solid #333; margin-top: 20px; }
-        .hint { color: #888; margin-top: 10px; }
+        body { background: #121212; color: #eee; text-align: center; font-family: sans-serif; margin: 0; overflow: hidden; }
+        canvas { background: #ffffff; cursor: pointer; border: 10px solid #333; margin-top: 10px; box-shadow: 0 0 30px rgba(0,0,0,0.5); }
+        .ui { position: absolute; top: 20px; left: 20px; text-align: left; background: rgba(0,0,0,0.7); padding: 15px; border-radius: 8px; pointer-events: none; }
+        h1 { margin: 0 0 10px 0; font-size: 20px; color: #4facfe; }
     </style>
 </head>
 <body>
 
-    <h2>電路解謎遊戲</h2>
-    <div class="hint">點擊紅框旋轉符號，連接電池與綠燈</div>
-    <canvas id="gameCanvas" width="800" height="800"></canvas>
+    <div class="ui">
+        <h1>電路維修系統</h1>
+        <p>• 點擊 <span style="color:red">紅色方框</span> 旋轉元件</p>
+        <p>• 讓電流從頂部電池傳導至 <span style="color:green">綠色目標</span></p>
+        <p>• 黃色元件為雙向獨立彎道</p>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        
-        const GRID_SIZE = 80;
-        const OFFSET = 120;
 
-        // 符號類型
-        const T_SHAPE = 'T';
-        const L_SHAPE = 'L';
-        const D_CURVE = 'D'; // 黃色雙彎道
+        // 遊戲設定
+        const cols = 9;
+        const rows = 9;
+        let gridSize;
+        const nodes = [];
 
-        // 模擬地圖 (x, y 為網格座標)
-        // 這裡我先幫你建立一個十字形的基礎，你可以自行增加
-        let nodes = [
-            { x: 4, y: 1, type: T_SHAPE, rot: 2, power: false }, // 靠近頂部電池
-            { x: 4, y: 2, type: L_SHAPE, rot: 1, power: false },
-            { x: 4, y: 3, type: D_CURVE, rot: 0, power: false, isYellow: true }, // 黃色特殊件
-            { x: 3, y: 3, type: T_SHAPE, rot: 0, power: false },
-            { x: 5, y: 3, type: L_SHAPE, rot: 3, power: false },
-            { x: 4, y: 4, type: 'LAMP', power: false } // 中心綠燈
-        ];
+        // 初始化畫布
+        function init() {
+            canvas.width = window.innerHeight * 0.9;
+            canvas.height = window.innerHeight * 0.9;
+            gridSize = canvas.width / (cols + 1);
+            createLevel();
+            draw();
+        }
 
-        // 定義哪些點之間有「線路」
-        let wires = [
-            { from: {x:4, y:0}, to: {x:4, y:1} }, // 電池到第一個點
-            { from: {x:4, y:1}, to: {x:4, y:2} },
-            { from: {x:4, y:2}, to: {x:4, y:3} },
-            { from: {x:4, y:3}, to: {x:4, y:4} },
-            { from: {x:3, y:3}, to: {x:4, y:3} },
-            { from: {x:4, y:3}, to: {x:5, y:3} }
-        ];
+        function createLevel() {
+            for (let y = 1; y <= rows; y++) {
+                for (let x = 1; x <= cols; x++) {
+                    // 隨機分配類型：T型, L型, 或黃色雙彎道
+                    let type = Math.random() > 0.8 ? 'D' : (Math.random() > 0.5 ? 'T' : 'L');
+                    
+                    // 特殊位置設定：中心點為目標綠燈
+                    if (x === 5 && y === 5) type = 'LAMP';
+                    
+                    nodes.push({
+                        x: x,
+                        y: y,
+                        type: type,
+                        rot: Math.floor(Math.random() * 4),
+                        isYellow: (type === 'D'),
+                        powered: false
+                    });
+                }
+            }
+        }
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 1. 畫電池 (頂部黑框)
-            ctx.fillStyle = '#222';
-            ctx.fillRect(4 * GRID_SIZE + OFFSET - 30, 10, 60, 40);
-
-            // 2. 畫背景電路線 (虛線)
-            ctx.strokeStyle = '#333';
-            ctx.setLineDash([5, 8]);
-            ctx.lineWidth = 2;
-            wires.forEach(w => {
+            // 1. 繪製背景參考線 (全域虛線網格)
+            ctx.setLineDash([5, 10]);
+            ctx.strokeStyle = "#e0e0e0";
+            ctx.lineWidth = 1;
+            for(let i=1; i<=cols; i++) {
                 ctx.beginPath();
-                ctx.moveTo(w.from.x * GRID_SIZE + OFFSET, w.from.y * GRID_SIZE + OFFSET);
-                ctx.lineTo(w.to.x * GRID_SIZE + OFFSET, w.to.y * GRID_SIZE + OFFSET);
+                ctx.moveTo(i * gridSize, gridSize);
+                ctx.lineTo(i * gridSize, rows * gridSize);
                 ctx.stroke();
-            });
-            ctx.setLineDash([]); // 恢復實線
+                ctx.beginPath();
+                ctx.moveTo(gridSize, i * gridSize);
+                ctx.lineTo(cols * gridSize, i * gridSize);
+                ctx.stroke();
+            }
 
-            // 3. 畫符號節點
+            // 2. 繪製電池 (頂部)
+            ctx.setLineDash([]);
+            ctx.fillStyle = "#222";
+            ctx.fillRect(5 * gridSize - 30, 0, 60, 40);
+            ctx.fillStyle = "#4facfe";
+            ctx.fillText("BATTERY", 5 * gridSize - 25, 25);
+
+            // 3. 繪製元件
             nodes.forEach(n => {
-                const px = n.x * GRID_SIZE + OFFSET;
-                const py = n.y * GRID_SIZE + OFFSET;
+                const px = n.x * gridSize;
+                const py = n.y * gridSize;
 
-                // 畫紅色外框
-                ctx.strokeStyle = '#ff0000';
-                ctx.lineWidth = 1;
-                ctx.strokeRect(px - 28, py - 28, 56, 56);
+                // 紅色外框
+                ctx.strokeStyle = "red";
+                ctx.lineWidth = 1.5;
+                ctx.strokeRect(px - gridSize/2.5, py - gridSize/2.5, gridSize/1.25, gridSize/1.25);
 
-                // 畫內部符號
+                // 旋轉繪製元件
                 ctx.save();
                 ctx.translate(px, py);
                 if(n.type !== 'LAMP') ctx.rotate(n.rot * Math.PI / 2);
                 
-                drawSymbol(n);
+                drawComponent(n);
                 ctx.restore();
             });
         }
 
-        function drawSymbol(n) {
-            ctx.lineWidth = 4;
-            ctx.strokeStyle = n.isYellow ? '#ffcc00' : '#005596';
+        function drawComponent(n) {
+            ctx.lineWidth = 5;
+            ctx.lineCap = "round";
+            const size = gridSize / 2;
             
-            if (n.type === T_SHAPE) {
+            // 顏色設定
+            if (n.type === 'LAMP') {
+                ctx.fillStyle = n.powered ? "#2ecc71" : "#bdc3c7";
                 ctx.beginPath();
-                ctx.moveTo(-28, 0); ctx.lineTo(28, 0);
-                ctx.moveTo(0, 0); ctx.lineTo(0, 28);
-                ctx.stroke();
-            } else if (n.type === L_SHAPE) {
-                ctx.beginPath();
-                ctx.moveTo(0, -28); ctx.lineTo(0, 0); ctx.lineTo(28, 0);
-                ctx.stroke();
-            } else if (n.type === D_CURVE) {
-                // 黃色雙彎道邏輯：兩條互不相干的弧線
-                ctx.beginPath();
-                ctx.arc(-28, -28, 28, 0, Math.PI / 2);
-                ctx.stroke();
-                ctx.beginPath();
-                ctx.arc(28, 28, 28, Math.PI, Math.PI * 1.5);
-                ctx.stroke();
-            } else if (n.type === 'LAMP') {
-                ctx.fillStyle = n.power ? '#00ff00' : '#ccc';
-                ctx.beginPath();
-                ctx.arc(0, 0, 15, 0, Math.PI * 2);
+                ctx.arc(0, 0, size/2, 0, Math.PI*2);
                 ctx.fill();
+                ctx.stroke();
+                return;
+            }
+
+            ctx.strokeStyle = n.isYellow ? "#f1c40f" : "#005596";
+            
+            if (n.type === 'T') {
+                ctx.beginPath();
+                ctx.moveTo(-size, 0); ctx.lineTo(size, 0);
+                ctx.moveTo(0, 0); ctx.lineTo(0, size);
+                ctx.stroke();
+            } else if (n.type === 'L') {
+                ctx.beginPath();
+                ctx.moveTo(0, -size); ctx.lineTo(0, 0); ctx.lineTo(size, 0);
+                ctx.stroke();
+            } else if (n.type === 'D') {
+                // 黃色雙彎道
+                ctx.beginPath();
+                ctx.arc(-size, -size, size, 0, Math.PI / 2);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(size, size, size, Math.PI, Math.PI * 1.5);
                 ctx.stroke();
             }
         }
 
-        // 點擊事件
+        // 點擊互動
         canvas.addEventListener('click', (e) => {
             const rect = canvas.getBoundingClientRect();
             const mx = e.clientX - rect.left;
             const my = e.clientY - rect.top;
 
             nodes.forEach(n => {
-                const px = n.x * GRID_SIZE + OFFSET;
-                const py = n.y * GRID_SIZE + OFFSET;
-                if (mx > px - 28 && mx < px + 28 && my > py - 28 && my < py + 28) {
+                const px = n.x * gridSize;
+                const py = n.y * gridSize;
+                const dist = Math.sqrt((mx-px)**2 + (my-py)**2);
+                
+                if (dist < gridSize/2) {
                     if(n.type !== 'LAMP') {
                         n.rot = (n.rot + 1) % 4;
+                        updateLogic(); // 這裡未來可以加入連點判斷
                         draw();
                     }
                 }
             });
         });
 
-        draw();
+        function updateLogic() {
+            // 目前先做簡單的視覺更新，進階版可加入 DFS 連通演算法
+        }
+
+        window.addEventListener('resize', init);
+        init();
     </script>
 </body>
 </html>
