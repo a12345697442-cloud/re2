@@ -2,96 +2,82 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>電路維修終端機 - 精確版</title>
+    <title>電路維修系統 - 嵌套路徑版</title>
     <style>
-        body { background: #0a0a0a; color: #00ffcc; text-align: center; font-family: 'Courier New', monospace; }
-        canvas { background: #000; border: 2px solid #004433; cursor: pointer; box-shadow: 0 0 20px #002211; }
-        .ui { margin: 10px; font-weight: bold; }
+        body { background: #080808; color: #00ffcc; text-align: center; font-family: 'Segoe UI', Tahoma, sans-serif; margin: 0; }
+        canvas { background: #000; cursor: pointer; border: 3px solid #004433; margin-top: 20px; box-shadow: 0 0 25px #002211; }
+        .info { margin: 15px; font-size: 1.1em; letter-spacing: 1px; }
     </style>
 </head>
 <body>
-    <div class="ui">CALIBRATION REQUIRED: 0/4 NODES POWERED</div>
-    <canvas id="gameCanvas" width="800" height="700"></canvas>
+
+    <div class="info">SYSTEM STATUS: <span id="power-count">0</span> / 6 NODES ONLINE</div>
+    <canvas id="gameCanvas" width="850" height="850"></canvas>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
-        // 節點數據：16個操作格 (手動佈置在關鍵路徑上)
+        // 座標定義 (基於 未命名-2.jpg 的回字型結構)
+        const center = { x: 425, y: 425 };
+        const layers = [60, 140, 220, 300]; // 回字型的四層半徑
+
+        // 16 個以內的操作方格節點
         let nodes = [
-            { id: 1, x: 400, y: 100, type: 'T', rot: 2, powered: false }, // 入口
-            { id: 2, x: 400, y: 200, type: 'T', rot: 0, powered: false },
-            { id: 3, x: 300, y: 200, type: 'L', rot: 1, powered: false },
-            { id: 4, x: 500, y: 200, type: 'L', rot: 3, powered: false },
-            { id: 5, x: 400, y: 300, type: 'D', rot: 0, powered: false, isYellow: true }, // 黃色特殊
-            { id: 6, x: 400, y: 450, type: 'T', rot: 2, powered: false },
-            { id: 7, x: 250, y: 350, type: 'T', rot: 1, powered: false },
-            { id: 8, x: 550, y: 350, type: 'L', rot: 0, powered: false },
-            // ... 可依需求增減至 16 個
+            { x: 425, y: 125, type: 'T', rot: 2, powered: false }, // 頂部入口
+            { x: 425, y: 225, type: 'T', rot: 0, powered: false },
+            { x: 425, y: 325, type: 'D', rot: 0, powered: false, isYellow: true }, // 黃色特殊件
+            { x: 525, y: 425, type: 'L', rot: 1, powered: false },
+            { x: 325, y: 425, type: 'T', rot: 3, powered: false },
+            { x: 425, y: 525, type: 'T', rot: 0, powered: false },
+            { x: 425, y: 625, type: 'L', rot: 2, powered: false },
+            // 你可以依照 1.jpg 的分佈繼續增加節點...
         ];
 
-        // 固定電線：手動定義路徑，模擬 1.jpg 的長線
-        let wires = [
-            { from: [400, 40], to: [400, 75], isSource: true }, // 電池引線
-            { from: [400, 125], to: [400, 175] },
-            { from: [400, 225], to: [400, 275] },
-            { from: [325, 200], to: [375, 200] }, // 橫線
-            { from: [425, 200], to: [475, 200] },
-            { from: [400, 325], to: [400, 425] },
-            { from: [400, 475], to: [400, 600] }, // 長垂直線
-            { from: [100, 350], to: [225, 350] }, // 長水平線
-        ];
-
-        // 4個目標電源
-        let targets = [
-            { x: 400, y: 500, powered: false }, // 中心
-            { x: 650, y: 150, powered: false }, // 右上
-            { x: 150, y: 550, powered: false }, // 左下
-            { x: 700, y: 400, powered: false }  // 右側
+        // 原始背景線路 (未命名-2.jpg 中的虛線段)
+        const wires = [
+            { x1: 425, y1: 50, x2: 425, y2: 100, isBattery: true }, // 電池引線
+            { x1: 425, y1: 150, x2: 425, y2: 200 },
+            { x1: 425, y1: 250, x2: 425, y2: 300 },
+            { x1: 425, y1: 350, x2: 425, y2: 400 },
+            // 回字型框架線路
+            { x1: 200, y1: 200, x2: 650, y2: 200 }, // 上橫線
+            { x1: 200, y1: 200, x2: 200, y2: 650 }, // 左直線
+            { x1: 650, y1: 200, x2: 650, y2: 650 }, // 右直線
+            { x1: 200, y1: 650, x2: 650, y2: 650 }, // 下橫線
         ];
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // 1. 畫電池
-            ctx.strokeStyle = "#00ffcc";
-            ctx.strokeRect(360, 10, 80, 30);
-            ctx.fillStyle = "#00ffcc";
-            ctx.fillText("BATTERY", 375, 30);
 
-            // 2. 畫電線 (邏輯判斷實虛線)
+            // 1. 畫電池 (上方黑框)
+            ctx.fillStyle = "#1a1a1a";
+            ctx.fillRect(375, 10, 100, 40);
+            ctx.strokeStyle = "#00ffcc";
+            ctx.strokeRect(375, 10, 100, 40);
+
+            // 2. 畫背景電線
             wires.forEach(w => {
                 ctx.beginPath();
                 ctx.lineWidth = 3;
-                // 這裡模擬連線邏輯：接通=亮綠, 未接通=暗灰虛線
-                if (w.isSource) {
+                if (w.isBattery) { // 電池出來的線永遠是實的
                     ctx.setLineDash([]);
                     ctx.strokeStyle = "#00ffcc";
                 } else {
-                    ctx.setLineDash([5, 8]);
-                    ctx.strokeStyle = "#223322"; // 未通電
+                    ctx.setLineDash([5, 8]); // 未通電前是虛線
+                    ctx.strokeStyle = "#2a2a2a";
                 }
-                ctx.moveTo(w.from[0], w.from[1]);
-                ctx.lineTo(w.to[0], w.to[1]);
+                ctx.moveTo(w.x1, w.y1);
+                ctx.lineTo(w.x2, w.y2);
                 ctx.stroke();
             });
 
-            // 3. 畫 4 個電源目標 (綠色圓點)
-            targets.forEach(t => {
-                ctx.setLineDash([]);
-                ctx.strokeStyle = "#00ffcc";
-                ctx.fillStyle = t.powered ? "#00ff00" : "#111";
-                ctx.beginPath();
-                ctx.arc(t.x, t.y, 15, 0, Math.PI*2);
-                ctx.fill();
-                ctx.stroke();
-            });
-
-            // 4. 畫 16 個以內的操作方格
+            // 3. 畫 16 個以內的操作方格
             nodes.forEach(n => {
-                ctx.strokeStyle = "red";
                 ctx.setLineDash([]);
-                ctx.strokeRect(n.x - 25, n.y - 25, 50, 50);
+                ctx.strokeStyle = "red";
+                ctx.lineWidth = 1;
+                ctx.strokeRect(n.x - 28, n.y - 28, 56, 56);
 
                 ctx.save();
                 ctx.translate(n.x, n.y);
@@ -99,27 +85,42 @@
                 drawSymbol(n);
                 ctx.restore();
             });
+
+            // 4. 畫中心電源與周邊電源
+            drawTarget(425, 425, true); // 中心主電源
         }
 
         function drawSymbol(n) {
             ctx.lineWidth = 4;
-            ctx.strokeStyle = n.isYellow ? "#ffff00" : "#00ffcc";
+            ctx.strokeStyle = n.isYellow ? "#e6b800" : "#0099ff";
+            const s = 22;
             if (n.type === 'T') {
-                ctx.beginPath(); ctx.moveTo(-20, 0); ctx.lineTo(20, 0); ctx.moveTo(0, 0); ctx.lineTo(0, 20); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(-s, 0); ctx.lineTo(s, 0); ctx.moveTo(0, 0); ctx.lineTo(0, s); ctx.stroke();
             } else if (n.type === 'L') {
-                ctx.beginPath(); ctx.moveTo(0, -20); ctx.lineTo(0, 0); ctx.lineTo(20, 0); ctx.stroke();
-            } else if (n.type === 'D') {
-                ctx.beginPath(); ctx.arc(-20, -20, 20, 0, Math.PI/2); ctx.stroke();
-                ctx.beginPath(); ctx.arc(20, 20, 20, Math.PI, Math.PI*1.5); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(0, -s); ctx.lineTo(0, 0); ctx.lineTo(s, 0); ctx.stroke();
+            } else if (n.type === 'D') { // 黃色特殊雙彎道
+                ctx.beginPath(); ctx.arc(-s, -s, s, 0, Math.PI/2); ctx.stroke();
+                ctx.beginPath(); ctx.arc(s, s, s, Math.PI, Math.PI*1.5); ctx.stroke();
             }
         }
 
-        canvas.addEventListener('click', (e) => {
+        function drawTarget(x, y, active) {
+            ctx.setLineDash([]);
+            ctx.strokeStyle = "#00ffcc";
+            ctx.fillStyle = active ? "#00ff00" : "#111";
+            ctx.beginPath();
+            ctx.arc(x, y, 20, 0, Math.PI*2);
+            ctx.fill();
+            ctx.stroke();
+        }
+
+        canvas.addEventListener('mousedown', (e) => {
             const rect = canvas.getBoundingClientRect();
             const mx = e.clientX - rect.left;
             const my = e.clientY - rect.top;
+
             nodes.forEach(n => {
-                if (mx > n.x - 25 && mx < n.x + 25 && my > n.y - 25 && my < n.y + 25) {
+                if (mx > n.x - 28 && mx < n.x + 28 && my > n.y - 28 && my < n.y + 28) {
                     n.rot = (n.rot + 1) % 4;
                     draw();
                 }
