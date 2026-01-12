@@ -1,122 +1,98 @@
+
+
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>電路維修 - 4層對稱結構版</title>
+    <title>電路維修 - 佈局優化版</title>
     <style>
         body { background: #050505; color: #eee; text-align: center; font-family: sans-serif; }
         canvas { background: #000; border: 2px solid #333; margin-top: 10px; }
     </style>
 </head>
 <body>
-    <h3 style="color:#00ffcc">系統升級：4 層迴路 / 16 個對稱節點</h3>
+    <h3 style="color:#00ffcc">佈局修正：解決電源遮擋 Power 入口問題</h3>
     <canvas id="gameCanvas" width="800" height="850"></canvas>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
-        // 定義中心點
-        const CX = 400; // 垂直中軸
-        const CY = 450; // 水平中軸
+        const CX = 400; 
+        const CY = 450; 
 
-        // 定義 4 層方框 (由大到小，確保間距足夠讓方框不相連)
-        // 每一層間距設為 80px，方框大小為 50px，所以有 30px 的安全距離
+        // 4 層方框設定
         const BOXES = [
-            { id: 1, size: 640 }, // 第 1 層 (最外)
-            { id: 2, size: 480 }, // 第 2 層
-            { id: 3, size: 320 }, // 第 3 層
-            { id: 4, size: 160 }  // 第 4 層 (最內)
+            { size: 600 }, // 第 1 層 (外)
+            { size: 460 }, // 第 2 層
+            { size: 320 }, // 第 3 層
+            { size: 180 }  // 第 4 層 (內)
         ];
 
         function drawMap() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 1. 繪製電池 (左上入口)
+            // 1. 電池 (POWER) 置於頂部，並拉開距離
             ctx.fillStyle = "#1a1a1a";
-            ctx.fillRect(CX - 40, 20, 80, 40); // 改為置中上方比較對稱，或維持左上
+            ctx.fillRect(CX - 50, 10, 100, 50);
             ctx.strokeStyle = "#00ffcc";
             ctx.lineWidth = 2;
-            ctx.strokeRect(CX - 40, 20, 80, 40);
+            ctx.strokeRect(CX - 50, 10, 100, 50);
+            ctx.fillStyle = "#00ffcc";
+            ctx.font = "14px Arial";
+            ctx.fillText("POWER", CX - 26, 42);
             
-            // 2. 繪製電線底圖 (灰色虛線)
-            ctx.strokeStyle = "#444";
+            // 2. 灰色虛線電線 
+            ctx.strokeStyle = "#333";
             ctx.setLineDash([5, 8]);
             ctx.lineWidth = 2;
             ctx.beginPath();
 
-            // 電池引線 (從上方接到最外層)
-            ctx.moveTo(CX, 60); ctx.lineTo(CX, CY - 320); // 垂直連入
+            // 電池引線 (拉長距離，避免遮擋)
+            ctx.moveTo(CX, 60); ctx.lineTo(CX, CY - 300); 
 
-            // 繪製 4 個嵌套方框 & 十字軸線
+            // 畫 4 個嵌套方框
             BOXES.forEach(box => {
                 const half = box.size / 2;
-                // 畫方框 (x, y, w, h)
                 ctx.strokeRect(CX - half, CY - half, box.size, box.size);
             });
 
-            // 畫十字貫穿線 (連接所有層)
-            // 垂直軸
+            // 畫十字軸線
             const maxSize = BOXES[0].size / 2;
-            ctx.moveTo(CX, CY - maxSize); ctx.lineTo(CX, CY + maxSize);
-            // 水平軸
-            ctx.moveTo(CX - maxSize, CY); ctx.lineTo(CX + maxSize, CY);
+            ctx.moveTo(CX, CY - maxSize); ctx.lineTo(CX, CY + maxSize); // 垂直
+            ctx.moveTo(CX - maxSize, CY); ctx.lineTo(CX + maxSize, CY); // 水平
             ctx.stroke();
 
-            // 3. 放置 16 個紅色方框 (規則：每一層 4 個，位於中點)
+            // 3. 16 個紅框 (每圈 4 個，位於邊緣中點)
             ctx.setLineDash([]);
-            const boxNodes = [];
-
             BOXES.forEach(box => {
                 const half = box.size / 2;
-                // 上中
-                boxNodes.push({x: CX, y: CY - half});
-                // 下中
-                boxNodes.push({x: CX, y: CY + half});
-                // 左中
-                boxNodes.push({x: CX - half, y: CY});
-                // 右中
-                boxNodes.push({x: CX + half, y: CY});
+                const pos = [
+                    {x: CX, y: CY - half}, {x: CX, y: CY + half}, // 上下
+                    {x: CX - half, y: CY}, {x: CX + half, y: CY}  // 左右
+                ];
+                pos.forEach(p => {
+                    ctx.strokeStyle = "red";
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(p.x - 25, p.y - 25, 50, 50);
+                });
             });
 
-            boxNodes.forEach(n => {
-                ctx.strokeStyle = "red";
-                ctx.lineWidth = 2;
-                // 繪製 50x50 的紅框，中心點對齊線段交點
-                ctx.strokeRect(n.x - 25, n.y - 25, 50, 50);
-                
-                // (可選) 畫出內部符號預覽 - 這裡先畫簡單十字
-                // ctx.lineWidth = 1;
-                // ctx.beginPath(); ctx.moveTo(n.x-10, n.y); ctx.lineTo(n.x+10, n.y); ctx.stroke();
-                // ctx.beginPath(); ctx.moveTo(n.x, n.y-10); ctx.lineTo(n.x, n.y+10); ctx.stroke();
-            });
-
-            // 4. 放置電源點 (規則：放在角落，與紅框完全錯開)
-            // 我們把電源放在最內層和最外層的角落，或是中心
+            // 4. 放置 6 個電源點 (精確避開 POWER 字樣與紅框)
+            // 將電源放在角落（對角線分佈），確保不會擋到垂直軸頂端的入口
             const targets = [
-                {x: CX, y: CY}, // 絕對中心點
-                
-                // 最內層 (第4層) 的四個角落
-                {x: CX - 80, y: CY - 80},
-                {x: CX + 80, y: CY - 80},
-                {x: CX - 80, y: CY + 80},
-                {x: CX + 80, y: CY + 80},
-
-                // 最外層 (第1層) 的兩個角落作為範例
-                {x: CX + 320, y: CY - 320}, // 右上角
-                {x: CX - 320, y: CY + 320}  // 左下角
+                {x: CX, y: CY}, // 1. 中心點
+                {x: CX - 300, y: CY - 300}, // 2. 最外圈左上
+                {x: CX + 300, y: CY + 300}, // 3. 最外圈右下
+                {x: CX + 230, y: CY - 230}, // 4. 第二圈右上
+                {x: CX - 160, y: CY + 160}, // 5. 第三圈左下
+                {x: CX + 90, y: CY - 90}    // 6. 第四圈右上
             ];
 
             targets.forEach(t => {
                 ctx.strokeStyle = "#00ffcc";
                 ctx.fillStyle = "#002211";
-                
-                ctx.beginPath(); 
-                ctx.arc(t.x, t.y, 20, 0, Math.PI*2); // 畫圓
-                ctx.fill();
-                ctx.stroke();
-
-                // 亮點芯
+                ctx.beginPath(); ctx.arc(t.x, t.y, 20, 0, Math.PI*2); ctx.fill(); ctx.stroke();
                 ctx.fillStyle = "#00ffcc";
                 ctx.beginPath(); ctx.arc(t.x, t.y, 5, 0, Math.PI*2); ctx.fill();
             });
