@@ -2,26 +2,28 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>電路維修 - 座標精確對齊版</title>
+    <title>電路維修 - 關卡配置版</title>
     <style>
         body { background: #050505; color: #eee; text-align: center; font-family: sans-serif; }
         canvas { background: #000; border: 2px solid #333; margin-top: 10px; }
     </style>
 </head>
 <body>
-    <h3 style="color:#00ffcc">底圖完成：電源點已全部校正至線上</h3>
+    <h3 style="color:#00ffcc">關卡配置：每圈 4 紅框 + 電源對齊不遮擋</h3>
     <canvas id="gameCanvas" width="800" height="850"></canvas>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
-        // 定義關鍵座標常量，確保線路與電源完美重合
-        const CX = 450; // 中心垂直線
-        const CY = 425; // 中心水平線
-        const BOX1 = { x: 100, y: 100, w: 650, h: 650 }; // 外框
-        const BOX2 = { x: 200, y: 200, w: 450, h: 450 }; // 中框
-        const BOX3 = { x: 300, y: 300, w: 250, h: 250 }; // 內框
+        // 定義標準座標常量
+        const CX = 450; 
+        const CY = 425;
+        const BOXES = [
+            { x: 100, y: 100, w: 650, h: 650 }, // 外框 (BOX1)
+            { x: 200, y: 200, w: 450, h: 450 }, // 中框 (BOX2)
+            { x: 300, y: 300, w: 250, h: 250 }  // 內框 (BOX3)
+        ];
 
         function drawMap() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -33,51 +35,53 @@
             ctx.lineWidth = 2;
             ctx.strokeRect(50, 20, 150, 70);
 
-            // 2. 電線佈局 (灰色虛線樣式)
+            // 2. 電線佈局 (灰色虛線)
             ctx.strokeStyle = "#444";
             ctx.setLineDash([5, 8]);
             ctx.lineWidth = 2;
-
             ctx.beginPath();
-            // 電池引線：右轉向下切入
-            ctx.moveTo(200, 55); ctx.lineTo(CX, 55); ctx.lineTo(CX, BOX1.y);
+            
+            // 引線
+            ctx.moveTo(200, 55); ctx.lineTo(CX, 55); ctx.lineTo(CX, 100);
 
-            // 繪製三層嵌套框
-            ctx.strokeRect(BOX1.x, BOX1.y, BOX1.w, BOX1.h);
-            ctx.strokeRect(BOX2.x, BOX2.y, BOX2.w, BOX2.h);
-            ctx.strokeRect(BOX3.x, BOX3.y, BOX3.w, BOX3.h);
-
-            // 繪製十字軸
-            ctx.moveTo(CX, 55); ctx.lineTo(CX, BOX1.y + BOX1.h); // 垂直軸
-            ctx.moveTo(BOX1.x, CY); ctx.lineTo(BOX1.x + BOX1.w, CY); // 水平軸
+            // 三層框與十字軸
+            BOXES.forEach(b => ctx.strokeRect(b.x, b.y, b.w, b.h));
+            ctx.moveTo(CX, 55); ctx.lineTo(CX, 750); // 垂直
+            ctx.moveTo(100, CY); ctx.lineTo(750, CY); // 水平
             ctx.stroke();
 
-            // 3. 繪製 6 個目標電源 (精確校正至線上)
+            // 3. 放置 6 個電源點 (放置在角落或末端，避免與紅框重疊)
             ctx.setLineDash([]);
             const targets = [
-                {x: CX, y: CY},                       // 1. 正中心交點
-                {x: BOX1.x + BOX1.w, y: BOX1.y},      // 2. 外框右上角 (750, 100)
-                {x: BOX2.x + BOX2.w, y: CY - 100},    // 3. 中框右側線上 (650, 325)
-                {x: BOX3.x + 50, y: BOX3.y},          // 4. 內框上邊緣線上 (350, 300)
-                {x: BOX2.x + BOX2.w - 100, y: BOX2.y + BOX2.h}, // 5. 中框下邊緣線上 (550, 650)
-                {x: BOX1.x, y: BOX1.y + BOX1.h}       // 6. 外框左下角 (100, 750)
+                {x: CX, y: CY},                       // 中心點
+                {x: BOXES[0].x + BOXES[0].w, y: 100}, // 右上角
+                {x: BOXES[0].x, y: 750},              // 左下角
+                {x: BOXES[1].x + BOXES[1].w, y: 200}, // 中圈右上
+                {x: BOXES[2].x, y: 300},              // 內圈左上
+                {x: 750, y: 550}                      // 右側支線
             ];
-
             targets.forEach(t => {
                 ctx.strokeStyle = "#00ffcc";
                 ctx.beginPath(); ctx.arc(t.x, t.y, 22, 0, Math.PI*2); ctx.stroke();
-                // 輔助點：確認圓心在線上
                 ctx.fillStyle = "#004433";
-                ctx.beginPath(); ctx.arc(t.x, t.y, 4, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(t.x, t.y, 5, 0, Math.PI*2); ctx.fill();
             });
 
-            // 4. 放置紅色操作方格 (16個以內，分佈在交點上)
-            const nodes = [
-                {x: CX, y: 150}, {x: CX, y: 250}, {x: CX, y: 350}, {x: CX, y: 500}, {x: CX, y: 600}, {x: CX, y: 700},
-                {x: 150, y: CY}, {x: 250, y: CY}, {x: 350, y: CY}, {x: 550, y: CY}, {x: 650, y: CY}, {x: 750, y: CY}
-            ];
+            // 4. 放置 16 個紅框節點 (每圈四個邊的中點各一個)
+            const nodes = [];
+            // 每圈 4 個 (中點對齊)
+            BOXES.forEach(b => {
+                nodes.push({x: CX, y: b.y});           // 上邊中點
+                nodes.push({x: CX, y: b.y + b.h});     // 下邊中點
+                nodes.push({x: b.x, y: CY});           // 左邊中點
+                nodes.push({x: b.x + b.w, y: CY});     // 右邊中點
+            });
+            // 補足至 16 個 (在十字軸與方框間的轉折處)
+            nodes.push({x: CX, y: 150}, {x: CX, y: 650}, {x: 250, y: CY}, {x: 650, y: CY});
+
             nodes.forEach(n => {
                 ctx.strokeStyle = "red";
+                ctx.lineWidth = 1.5;
                 ctx.strokeRect(n.x - 25, n.y - 25, 50, 50);
             });
         }
@@ -86,3 +90,4 @@
     </script>
 </body>
 </html>
+
