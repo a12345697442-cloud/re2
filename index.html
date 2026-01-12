@@ -1,167 +1,120 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="zh-TW">
 <head>
-<meta charset="UTF-8">
-<title>POWER CALIBRATION</title>
-
-<style>
-@font-face {
-  font-family: "RE4";
-  src: url("./resident_evil_4_remake_font_by_snakeyboy_df7kacs.ttf");
-}
-
-body {
-  margin: 0;
-  background: #050807;
-  height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-family: "RE4", monospace;
-}
-
-#panel {
-  border: 4px solid #1aff9c;
-  padding: 12px;
-  background: #03130c;
-}
-
-canvas {
-  background: #000;
-  display: block;
-}
-
-#status {
-  margin-top: 6px;
-  color: #1aff9c;
-  font-size: 14px;
-  text-align: center;
-}
-</style>
+    <meta charset="UTF-8">
+    <title>電路解謎小遊戲</title>
+    <style>
+        body { background: #1a1a1a; color: white; text-align: center; font-family: sans-serif; }
+        canvas { background: #ffffff; cursor: pointer; border: 5px solid #333; margin-top: 20px; }
+        .controls { margin: 20px; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
+    </style>
 </head>
-
 <body>
-<div id="panel">
-  <canvas id="game" width="460" height="460"></canvas>
-  <div id="status">INSUFFICIENT POWER. CALIBRATION REQUIRED.</div>
-</div>
 
-<script>
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
-const statusText = document.getElementById("status");
+    <h1>電路解謎遊戲</h1>
+    <p>點擊紅色方框旋轉符號，連接電池（頂端黑色）與所有綠燈！</p>
+    
+    <canvas id="gameCanvas" width="600" height="600"></canvas>
 
-const CENTER = 230;
+    <div class="controls">
+        <button onclick="checkWin()">檢查連線狀態</button>
+        <p id="status"></p>
+    </div>
 
-// ===== Junction 狀態 =====
-// 0 = L
-// 1 = T
-// 2 = +
-let junctions = [
-  { x: CENTER, y: 110, type: 0 },
-  { x: CENTER, y: 230, type: 1 },
-  { x: CENTER, y: 350, type: 0 }
-];
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const gridSize = 80;
+        const padding = 60;
 
-// 三個電源點（在不同電圈）
-let powerNodes = [
-  { x: CENTER + 120, y: 110, powered: false },
-  { x: CENTER + 160, y: 230, powered: false },
-  { x: CENTER + 200, y: 350, powered: false }
-];
+        // 定義符號類型
+        // 0: T型, 1: L型, 2: 黃色雙變道(不交叉連通)
+        const T_SHAPE = 0;
+        const L_SHAPE = 1;
+        const DOUBLE_CURVE = 2;
 
-function drawLoop(size) {
-  ctx.strokeStyle = "#1aff9c";
-  ctx.lineWidth = 3;
-  ctx.strokeRect(
-    CENTER - size,
-    CENTER - size,
-    size * 2,
-    size * 2
-  );
-}
+        // 模擬地圖數據 (部分範例)
+        let nodes = [
+            { x: 3, y: 0, type: T_SHAPE, rotation: 0, isPower: false }, // 電池下方第一個
+            { x: 3, y: 1, type: L_SHAPE, rotation: 1, isPower: false },
+            { x: 2, y: 1, type: DOUBLE_CURVE, rotation: 0, isPower: false },
+            // 你可以在這裡依照圖片座標增加更多節點...
+        ];
 
-function drawJunction(j) {
-  ctx.strokeStyle = "#1aff9c";
-  ctx.lineWidth = 4;
-  ctx.beginPath();
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 繪製頂部電池
+            ctx.fillStyle = '#2c3e50';
+            ctx.fillRect(250, 0, 100, 40);
 
-  if (j.type === 0) { // L
-    ctx.moveTo(j.x, j.y);
-    ctx.lineTo(j.x + 30, j.y);
-    ctx.moveTo(j.x, j.y);
-    ctx.lineTo(j.x, j.y + 30);
-  } else if (j.type === 1) { // T
-    ctx.moveTo(j.x - 20, j.y);
-    ctx.lineTo(j.x + 20, j.y);
-    ctx.moveTo(j.x, j.y);
-    ctx.lineTo(j.x, j.y + 30);
-  } else { // +
-    ctx.moveTo(j.x - 20, j.y);
-    ctx.lineTo(j.x + 20, j.y);
-    ctx.moveTo(j.x, j.y - 20);
-    ctx.lineTo(j.x, j.y + 20);
-  }
+            nodes.forEach(node => {
+                const px = node.x * gridSize + padding;
+                const py = node.y * gridSize + padding;
 
-  ctx.stroke();
-}
+                // 繪製紅色框
+                ctx.strokeStyle = 'red';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(px - 30, py - 30, 60, 60);
 
-function drawPowerNode(p) {
-  ctx.fillStyle = p.powered ? "#1aff9c" : "#064b30";
-  ctx.beginPath();
-  ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
-  ctx.fill();
-}
+                // 根據旋轉角度繪製符號
+                ctx.save();
+                ctx.translate(px, py);
+                ctx.rotate(node.rotation * Math.PI / 2);
+                
+                drawSymbol(node.type);
+                ctx.restore();
+            });
+        }
 
-function evaluatePower() {
-  // 電力從上方進來
-  let flow = true;
+        function drawSymbol(type) {
+            ctx.lineWidth = 4;
+            if (type === T_SHAPE) {
+                ctx.strokeStyle = '#005596'; // 藍色
+                ctx.beginPath();
+                ctx.moveTo(-30, 0); ctx.lineTo(30, 0);
+                ctx.moveTo(0, 0); ctx.lineTo(0, 30);
+                ctx.stroke();
+            } else if (type === L_SHAPE) {
+                ctx.strokeStyle = '#005596';
+                ctx.beginPath();
+                ctx.moveTo(0, -30); ctx.lineTo(0, 0); ctx.lineTo(30, 0);
+                ctx.stroke();
+            } else if (type === DOUBLE_CURVE) {
+                ctx.strokeStyle = '#ffee00'; // 黃色
+                // 繪製兩條不相交的曲線 (雙彎道)
+                ctx.beginPath();
+                ctx.arc(-30, -30, 30, 0, Math.PI / 2);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(30, 30, 30, Math.PI, Math.PI * 1.5);
+                ctx.stroke();
+            }
+        }
 
-  junctions.forEach((j, i) => {
-    if (j.type === 0 && i === 1) flow = false;
-    if (j.type === 1 && i === 2) flow = false;
-    powerNodes[i].powered = flow;
-  });
+        // 點擊旋轉邏輯
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
 
-  const success = powerNodes.every(p => p.powered);
-  statusText.textContent = success
-    ? "POWER STABLE. ALL LOOPS ONLINE."
-    : "INSUFFICIENT POWER. CALIBRATION REQUIRED.";
-}
+            nodes.forEach(node => {
+                const px = node.x * gridSize + padding;
+                const py = node.y * gridSize + padding;
+                if (mouseX > px - 30 && mouseX < px + 30 && mouseY > py - 30 && mouseY < py + 30) {
+                    node.rotation = (node.rotation + 1) % 4;
+                    draw();
+                }
+            });
+        });
 
-function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+        function checkWin() {
+            // 這裡需要實作 DFS 或 BFS 演算法來檢查從電池出發的連通性
+            document.getElementById('status').innerText = "連線邏輯計算中... (需根據地圖完整座標實作)";
+        }
 
-  // POWER label
-  ctx.fillStyle = "#1aff9c";
-  ctx.font = "14px RE4";
-  ctx.fillText("POWER ++", CENTER - 40, 40);
-
-  // 電圈
-  drawLoop(80);
-  drawLoop(120);
-  drawLoop(160);
-
-  junctions.forEach(drawJunction);
-  powerNodes.forEach(drawPowerNode);
-}
-
-canvas.addEventListener("click", e => {
-  const rect = canvas.getBoundingClientRect();
-  const mx = e.clientX - rect.left;
-  const my = e.clientY - rect.top;
-
-  junctions.forEach(j => {
-    if (Math.abs(mx - j.x) < 25 && Math.abs(my - j.y) < 25) {
-      j.type = (j.type + 1) % 3;
-      evaluatePower();
-      draw();
-    }
-  });
-});
-
-evaluatePower();
-draw();
-</script>
+        draw();
+    </script>
 </body>
 </html>
