@@ -3,247 +3,195 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>RE2 ROTARY - COLOR SYNC</title>
+    <title>RE4 TERMINAL CALIBRATION</title>
     <style>
-        @font-face {
-            font-family: 'RE_Font';
-            src: url('resident_evil_4_remake_font_by_snakeyboy_df7kacs.ttf');
+        :root {
+            --re-green: #2ecc71;
+            --re-dim: #1a5e3a;
+            --bg-black: #050505;
         }
 
-        :root { 
-            --pwr-color: #f1c40f; 
-            --bg-color: #050505;
-            /* 色彩編碼 */
-            --color-outer: #e74c3c; /* 紅 */
-            --color-mid: #2ecc71;   /* 綠 */
-            --color-inner: #3498db;  /* 藍 */
-            --color-fixed: #95a5a6;  /* 灰 */
-        }
-
-        body { 
-            background-color: var(--bg-color); color: #ccc; 
-            font-family: 'RE_Font', sans-serif; 
-            display: flex; flex-direction: column; align-items: center; 
+        body {
+            background-color: var(--bg-black);
+            color: var(--re-green);
+            font-family: 'Courier New', monospace;
+            display: flex; flex-direction: column; align-items: center;
             margin: 0; padding: 0; height: 100vh;
-            background-image: radial-gradient(circle, #1a1a1a 0%, #000 100%);
             overflow: hidden; touch-action: manipulation;
         }
 
-        .header { margin-top: 15px; text-align: center; }
-        h2 { color: #8b0000; letter-spacing: 5px; margin: 0; font-size: 1.3em; }
-        .timer { color: #ff0000; font-size: 1.2em; margin-top: 5px; font-family: 'Courier New'; }
+        .screen {
+            width: 340px; height: 340px;
+            border: 4px solid var(--re-dim);
+            margin-top: 30px; position: relative;
+            background: radial-gradient(circle, #0a1f14 0%, #000 100%);
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            grid-template-rows: repeat(7, 1fr);
+            box-shadow: inset 0 0 50px rgba(46, 204, 113, 0.2);
+        }
 
-        /* 拼圖顯示區 */
-        #puzzle-container {
-            position: relative;
-            width: 300px; height: 300px;
-            margin: 25px 0;
+        /* 標題與電力狀態 */
+        .status-bar { width: 340px; display: flex; justify-content: space-between; margin-top: 15px; font-size: 14px; }
+        .power-tag { background: var(--re-green); color: #000; padding: 2px 8px; font-weight: bold; }
+
+        /* 方塊基礎樣式 */
+        .cell {
             display: flex; justify-content: center; align-items: center;
+            position: relative; font-size: 20px; font-weight: bold;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), color 0.3s;
+            color: var(--re-dim);
         }
+        .cell.active { color: var(--re-green); text-shadow: 0 0 10px var(--re-green); }
 
-        /* 注入點 */
-        .target-indicator {
-            position: absolute; top: -10px; font-size: 28px; color: var(--pwr-color);
-            z-index: 100; text-shadow: 0 0 15px var(--pwr-color);
-            animation: pulse 1s infinite;
+        /* 中心與目標 */
+        .center-node { color: #fff; font-size: 24px; text-shadow: 0 0 15px #fff; }
+        .target-node { font-size: 24px; }
+        .target-node.lit { color: #fff; text-shadow: 0 0 15px var(--re-green); }
+
+        /* 底部控制按鈕 */
+        .controls {
+            margin-top: 40px; display: grid;
+            grid-template-columns: repeat(2, 1fr); gap: 15px; width: 90%; max-width: 350px;
         }
-        @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.2); opacity: 0.7; } }
-
-        .ring {
-            position: absolute;
-            border: 6px solid #222;
-            border-radius: 50%;
-            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s, box-shadow 0.3s;
-            box-sizing: border-box;
-        }
-
-        /* 每一圈的獨特顏色 */
-        #ring-3 { border-color: rgba(231, 76, 60, 0.3); } /* 外環 */
-        #ring-2 { border-color: rgba(46, 204, 113, 0.3); } /* 中外 */
-        #ring-1 { border-color: rgba(149, 165, 166, 0.2); border-style: dashed; } /* 固定 */
-        #ring-0 { border-color: rgba(52, 152, 219, 0.3); } /* 內環 */
-
-        /* 選取狀態（按住按鈕時） */
-        .ring.focus { border-width: 8px; border-color: white !important; box-shadow: 0 0 30px white; z-index: 50; }
-
-        .brush {
-            position: absolute;
-            background: #333;
-            width: 14px; height: 26px;
-            top: -16px; left: 50%;
-            transform: translateX(-50%);
-            border-radius: 3px;
-            transition: background 0.3s, box-shadow 0.3s;
-        }
-
-        /* 通電發光 */
-        .ring.powered .brush.active {
-            background: var(--pwr-color) !important;
-            box-shadow: 0 0 20px var(--pwr-color), 0 0 40px var(--pwr-color);
-        }
-
-        #core {
-            width: 60px; height: 60px; background: #000;
-            border: 4px solid #333; border-radius: 50%;
-            z-index: 10; display: flex; justify-content: center; align-items: center;
-            font-size: 10px; color: #555;
-        }
-        #core.unlocked { border-color: var(--pwr-color); color: var(--pwr-color); box-shadow: 0 0 30px var(--pwr-color); }
-
-        /* 手機控制面板 */
-        #control-panel {
-            width: 100%; max-width: 400px;
-            padding: 15px; display: grid;
-            grid-template-columns: 1fr 1fr; gap: 12px;
-            box-sizing: border-box;
-        }
-
         .btn {
-            background: #111; border: 2px solid #444; color: #fff;
-            padding: 22px 5px; font-family: 'RE_Font'; font-size: 1em;
-            border-radius: 10px; text-align: center;
-            transition: 0.1s; position: relative;
+            background: #111; border: 2px solid var(--re-dim); color: var(--re-green);
+            padding: 20px 0; text-align: center; border-radius: 5px;
+            font-weight: bold; letter-spacing: 2px;
         }
+        .btn:active { background: var(--re-dim); color: #fff; transform: scale(0.95); }
 
-        /* 按鈕顏色對應 */
-        .btn-outer { border-left: 8px solid var(--color-outer); }
-        .btn-mid { border-left: 8px solid var(--color-mid); }
-        .btn-inner { border-left: 8px solid var(--color-inner); }
-        .btn-fixed { opacity: 0.3; border-left: 8px solid var(--color-fixed); }
-
-        .btn:active { background: #333; transform: translateY(4px); }
-
-        .overlay { 
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-            background: rgba(0,0,0,0.95); display: none; flex-direction: column; 
-            justify-content: center; align-items: center; z-index: 200;
+        /* 勝利畫面 */
+        .overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); display: none; flex-direction: column;
+            justify-content: center; align-items: center; z-index: 100;
         }
+        .msg { color: #f1c40f; letter-spacing: 10px; font-size: 1.5em; text-align: center; line-height: 2; }
     </style>
 </head>
 <body>
 
-    <div class="header">
-        <h2>CIRCUIT OVERRIDE</h2>
-        <div class="timer">STABILITY: <span id="time-display">60</span>s</div>
-    </div>
-    
-    <div id="puzzle-container">
-        <div class="target-indicator">▼</div>
-        <div id="core">LOCKED</div>
+    <div class="status-bar">
+        <div class="power-tag">POWER ▶▶</div>
+        <div id="target-count">CALIBRATING: 0/4</div>
     </div>
 
-    <div id="control-panel">
-        <div class="btn btn-outer" 
-             ontouchstart="focusRing(3)" ontouchend="blurRing(3)" onclick="handleRotate(3)">
-             OUTER RING
+    <div class="screen" id="grid">
         </div>
-        <div class="btn btn-mid" 
-             ontouchstart="focusRing(2)" ontouchend="blurRing(2)" onclick="handleRotate(2)">
-             MIDDLE RING
-        </div>
-        <div class="btn btn-fixed">STATIONARY</div>
-        <div class="btn btn-inner" 
-             ontouchstart="focusRing(0)" ontouchend="blurRing(0)" onclick="handleRotate(0)">
-             INNER RING
-        </div>
+
+    <div style="margin-top:10px; font-size:10px; color:var(--re-dim);">INSUFFICIENT POWER. CALIBRATION REQUIRED.</div>
+
+    <div class="controls">
+        <div class="btn" onclick="rotateLine('row', 1)">LAYER 1</div>
+        <div class="btn" onclick="rotateLine('row', 2)">LAYER 2</div>
+        <div class="btn" onclick="rotateLine('row', 3)">LAYER 3</div>
+        <div class="btn" onclick="rotateLine('row', 4)">LAYER 4</div>
     </div>
 
     <div id="overlay" class="overlay">
-        <h1 id="status-text" style="color:#f1c40f; letter-spacing:10px; text-align:center; line-height:2.5;"></h1>
-        <button style="margin-top:40px; background:transparent; color:#fff; border:1px solid #666; padding:15px 40px;" onclick="location.reload()">RE-INITIALIZE</button>
+        <div class="msg">Congratulations, stranger!<br>Access Granted.</div>
+        <button style="margin-top:30px; background:none; border:1px solid #444; color:#fff; padding:10px 30px;" onclick="location.reload()">RE-INITIALIZE</button>
     </div>
 
 <script>
-    const ringConfig = [
-        { id: 0, size: 100, contacts: [0, 180], rot: 0, step: 90 }, // 內 (藍)
-        { id: 1, size: 170, contacts: [0, 90, 270], rot: 0, step: 45, locked: true }, // 中內 (灰-固定)
-        { id: 2, size: 240, contacts: [0, 225], rot: 0, step: 45 }, // 中外 (綠)
-        { id: 3, size: 310, contacts: [0, 135], rot: 0, step: 90 }  // 外 (紅)
+    // 遊戲配置：十字結構，索引為 0-6 (7x7)
+    // 我們簡化逻辑，點擊不同按鈕旋轉不同距離的「圈」
+    const size = 7;
+    const center = 3;
+    let gridData = [];
+    const targets = [
+        {r: 3, c: 0}, {r: 3, c: 6}, {r: 0, c: 3}, {r: 6, c: 3}
     ];
 
-    let timeLeft = 60, isWin = false;
-
     function init() {
-        const container = document.getElementById('puzzle-container');
-        ringConfig.forEach(cfg => {
-            const ring = document.createElement('div');
-            ring.className = 'ring';
-            ring.id = `ring-${cfg.id}`;
-            ring.style.width = cfg.size + 'px';
-            ring.style.height = cfg.size + 'px';
-            
-            cfg.rot = Math.floor(Math.random() * 8) * 45;
-            ring.style.transform = `rotate(${cfg.rot}deg)`;
+        const gridEl = document.getElementById('grid');
+        for (let r = 0; r < size; r++) {
+            gridData[r] = [];
+            for (let c = 0; c < size; c++) {
+                let type = 'empty';
+                let content = '';
+                
+                if (r === center && c === center) { type = 'center'; content = '◎'; }
+                else if (targets.some(t => t.r === r && t.c === c)) { type = 'target'; content = '⬢'; }
+                else if (r === center || c === center) { 
+                    type = 'wire'; 
+                    content = Math.random() > 0.5 ? '┛' : '┳'; // 隨機初識形狀
+                }
 
-            cfg.contacts.forEach(angle => {
-                const b = document.createElement('div');
-                b.className = 'brush';
-                b.style.transformOrigin = `7px ${cfg.size/2 + 16}px`;
-                b.style.transform = `rotate(${angle}deg)`;
-                ring.appendChild(b);
-            });
-            container.appendChild(ring);
-        });
-        setInterval(updateTimer, 1000);
+                const cell = document.createElement('div');
+                cell.className = `cell ${type}`;
+                cell.id = `c-${r}-${c}`;
+                cell.innerText = content;
+                gridEl.appendChild(cell);
+                
+                gridData[r][c] = { type, rot: Math.floor(Math.random()*4)*90 };
+                updateVisual(r, c);
+            }
+        }
         checkPower();
     }
 
-    // 手機觸碰預覽：按住按鈕時那一圈會變白發光
-    function focusRing(id) { document.getElementById(`ring-${id}`).classList.add('focus'); }
-    function blurRing(id) { document.getElementById(`ring-${id}`).classList.remove('focus'); }
+    // 核心操作：旋轉「某一層」
+    // 模擬 RE4，不同的按鈕旋轉十字線上不同距離的方塊
+    function rotateLine(type, layer) {
+        // layer 1: 離中心最近的 4 個點
+        // layer 2: 離中心 2 格的 4 個點...
+        const positions = [
+            {r: center-layer, c: center}, {r: center+layer, c: center},
+            {r: center, c: center-layer}, {r: center, c: center+layer}
+        ];
 
-    function handleRotate(idx) {
-        if(isWin) return;
-        if (window.navigator.vibrate) window.navigator.vibrate(30);
-
-        ringConfig[idx].rot = (ringConfig[idx].rot + ringConfig[idx].step) % 360;
-        
-        // 聯動機制 (讓解謎更難)
-        if(idx === 3) ringConfig[0].rot = (ringConfig[0].rot - 45) % 360; 
-        if(idx === 0) ringConfig[2].rot = (ringConfig[2].rot + 45) % 360;
-
-        ringConfig.forEach(cfg => {
-            document.getElementById(`ring-${cfg.id}`).style.transform = `rotate(${cfg.rot}deg)`;
+        positions.forEach(pos => {
+            if (pos.r >= 0 && pos.r < size && pos.c >= 0 && pos.c < size) {
+                gridData[pos.r][pos.c].rot += 90;
+                updateVisual(pos.r, pos.c);
+            }
         });
 
-        setTimeout(checkPower, 400);
+        if (window.navigator.vibrate) window.navigator.vibrate(20);
+        setTimeout(checkPower, 350);
+    }
+
+    function updateVisual(r, c) {
+        const el = document.getElementById(`c-${r}-${c}`);
+        el.style.transform = `rotate(${gridData[r][c].rot}deg)`;
     }
 
     function checkPower() {
-        let winStatus = true;
-        ringConfig.forEach(cfg => {
-            const el = document.getElementById(`ring-${cfg.id}`);
-            const brushes = el.getElementsByClassName('brush');
-            let aligned = false;
+        // 模擬電力傳導：這是一個簡化的逻辑
+        // 在 RE4 中是看接頭是否對齊，我們這裡設定「特定角度」為通電
+        let litCount = 0;
+        
+        targets.forEach((t, idx) => {
+            const el = document.getElementById(`c-${t.r}-${t.c}`);
+            // 隨機模擬：每層都有正確的角度
+            // 這裡設定當該軸線上的 rot % 180 === 0 時通電
+            const layer = Math.abs(t.r - center) || Math.abs(t.c - center);
+            
+            // 這裡是一個示範逻辑：只要該方向的方塊 rot 是 90 的倍數（簡單化測試）
+            // 實際開發中可以設定每個方塊的四個出口 [T, R, B, L]
+            let isLit = true;
+            for(let i=1; i<=3; i++) {
+                let checkR = center + (t.r > center ? i : (t.r < center ? -i : 0));
+                let checkC = center + (t.c > center ? i : (t.c < center ? -i : 0));
+                if (gridData[checkR][checkC].rot % 360 !== 0) isLit = false;
+            }
 
-            cfg.contacts.forEach((angle, i) => {
-                let current = (angle + cfg.rot) % 360;
-                while(current < 0) current += 360;
-                const isTop = (current < 5 || current > 355);
-                brushes[i].classList.toggle('active', isTop);
-                if(isTop) aligned = true;
-            });
-
-            if(aligned) el.classList.add('powered');
-            else { el.classList.remove('powered'); winStatus = false; }
+            if (isLit) {
+                el.classList.add('lit');
+                litCount++;
+            } else {
+                el.classList.remove('lit');
+            }
         });
 
-        if(winStatus && !isWin) {
-            isWin = true;
-            document.getElementById('core').classList.add('unlocked');
-            document.getElementById('core').innerText = "ONLINE";
+        document.getElementById('target-count').innerText = `CALIBRATING: ${litCount}/4`;
+        
+        if (litCount === 4) {
             setTimeout(() => {
-                document.getElementById('status-text').innerText = "Congratulations, stranger!\nPlease claim your reward.";
                 document.getElementById('overlay').style.display = 'flex';
-            }, 1000);
-        }
-    }
-
-    function updateTimer() {
-        if(!isWin && timeLeft > 0) {
-            timeLeft--;
-            document.getElementById('time-display').innerText = timeLeft;
-            if(timeLeft <= 0) location.reload();
+            }, 500);
         }
     }
 
