@@ -3,173 +3,204 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RE4 CIRCUIT REPAIR</title>
+    <title>PCB NODE INSERTION</title>
     <style>
-        :root { --green: #3cf08d; --dark: #1a251e; --bg: #050605; }
+        :root { --green: #3cf08d; --bg: #050605; --dark: #1a251e; }
         body { background: var(--bg); color: var(--green); font-family: monospace; display: flex; flex-direction: column; align-items: center; margin: 0; }
         
-        #ui { width: 340px; margin-top: 20px; display: flex; justify-content: space-between; border-bottom: 1px solid var(--dark); padding: 10px; }
-        #board { position: relative; width: 360px; height: 400px; margin-top: 20px; background: #000; border: 2px solid #222; }
-        
-        /* 畫布層：繪製電線與軌道 */
+        #ui { width: 340px; margin-top: 20px; display: flex; justify-content: space-between; border-bottom: 1px solid var(--dark); padding: 5px; }
+        #board { position: relative; width: 360px; height: 360px; background: #000; border: 2px solid #222; margin-top: 10px; }
         canvas { position: absolute; top: 0; left: 0; z-index: 5; pointer-events: none; }
 
-        /* 按鈕組件 */
-        .knob {
-            position: absolute; width: 46px; height: 46px; background: #111; border: 2px solid #333;
-            z-index: 100; cursor: pointer; display: flex; justify-content: center; align-items: center;
-            transition: transform 0.2s;
+        /* 插槽 */
+        .socket {
+            position: absolute; width: 44px; height: 44px; background: #111; 
+            border: 2px dashed #444; border-radius: 4px; z-index: 10;
+            display: flex; justify-content: center; align-items: center; cursor: pointer;
         }
-        .knob svg { width: 36px; height: 36px; stroke: #444; stroke-width: 5; fill: none; }
-        .knob.on { border-color: var(--green); box-shadow: 0 0 10px rgba(60, 240, 141, 0.3); }
-        .knob.on svg { stroke: var(--green); }
+        .socket.filled { border-style: solid; border-color: #666; }
+        .socket svg { width: 34px; height: 34px; stroke: #444; stroke-width: 5; fill: none; }
+        .socket.powered svg { stroke: var(--green); filter: drop-shadow(0 0 5px var(--green)); }
 
-        /* 電源點 (末端目標) */
+        /* 電源目標 */
         .cell {
-            position: absolute; width: 16px; height: 16px; border: 2px solid #333;
-            border-radius: 50%; z-index: 50; background: #000; transition: 0.3s;
+            position: absolute; width: 14px; height: 14px; border: 2px solid #333;
+            border-radius: 50%; z-index: 50; background: #000;
         }
-        .cell.on { background: var(--green); border-color: #fff; box-shadow: 0 0 15px var(--green); }
+        .cell.lit { background: var(--green); border-color: #fff; box-shadow: 0 0 15px var(--green); }
+
+        /* 插件選單 */
+        #inventory { 
+            width: 340px; margin-top: 20px; display: flex; gap: 10px; 
+            background: #111; padding: 15px; border: 1px solid var(--dark);
+        }
+        .inv-item {
+            width: 50px; height: 50px; border: 2px solid #444; display: flex;
+            flex-direction: column; align-items: center; justify-content: center;
+            cursor: pointer; background: #000;
+        }
+        .inv-item.selected { border-color: var(--green); background: var(--dark); }
+        .inv-item svg { width: 25px; height: 25px; stroke: var(--green); stroke-width: 4; fill: none; }
+        .inv-count { font-size: 10px; margin-top: 2px; }
     </style>
 </head>
 <body>
 
 <div id="ui">
-    <div>SYSTEM: <span style="color:#ffcc00">ACTIVE</span></div>
+    <div>STAGE: <span style="color:#ffcc00">INSERTION MODE</span></div>
     <div id="stat">NODES: 0 / 4</div>
 </div>
 
 <div id="board">
-    <canvas id="circuitCanvas" width="360" height="400"></canvas>
-    <div style="position:absolute; left:10px; top:-5px; font-size:10px; color:var(--green);">SOURCE >></div>
+    <canvas id="cvs" width="360" height="360"></canvas>
+    <div style="position:absolute; left:165px; top:-5px; font-size:10px;">[POWER IN]</div>
+</div>
+
+<div id="inventory">
+    <div class="inv-item" onclick="selectPart('L')" id="partL">
+        <svg viewBox="0 0 40 40"><path d="M20 5 V20 H35" /></svg>
+        <span class="inv-count">L (x2)</span>
+    </div>
+    <div class="inv-item" onclick="selectPart('T')" id="partT">
+        <svg viewBox="0 0 40 40"><path d="M5 20 H35 M20 20 V5" /></svg>
+        <span class="inv-count">T (x1)</span>
+    </div>
+    <div class="inv-item" onclick="selectPart('CROSS')" id="partX">
+        <svg viewBox="0 0 40 40"><path d="M5 20 H35 M20 5 V35" /></svg>
+        <span class="inv-count">X (x1)</span>
+    </div>
+    <button style="margin-left:auto; background:#000; border:1px solid #666; color:#888;" onclick="resetBoard()">RESET</button>
 </div>
 
 <script>
 const board = document.getElementById('board');
-const cvs = document.getElementById('circuitCanvas');
+const cvs = document.getElementById('cvs');
 const ctx = cvs.getContext('2d');
 
-// 遊戲配置：包含按鈕位置、類型、連接關係
-const config = {
-    knobs: [
-        { id: 0, x: 180, y: 80, type: 'T', rot: 0, connected: true },   // 頂部總開關
-        { id: 1, x: 80,  y: 200, type: 'L', rot: 0, connected: false }, // 左路
-        { id: 2, x: 280, y: 200, type: 'T', rot: 0, connected: false }, // 右路分流
-        { id: 3, x: 180, y: 320, type: 'CROSS', rot: 0, connected: false } // 底部十字
-    ],
-    cells: [
-        { x: 30,  y: 200, ring: 1 }, // 左側終端
-        { x: 280, y: 320, ring: 2 }, // 右下終端
-        { x: 180, y: 370, ring: 3 }, // 底部終端
-        { x: 330, y: 200, ring: 2 }  // 右側終端
-    ],
-    // 線路定義：起點 x,y 到 終點 x,y
-    wires: [
-        { from: [180, 0], to: [180, 80], powered: true }, // 電源進入
-        { from: [180, 80], to: [80, 80], parent: 0, dir: 'left' },
-        { from: [80, 80], to: [80, 200], parent: 0, dir: 'left' },
-        { from: [180, 80], to: [280, 80], parent: 0, dir: 'right' },
-        { from: [280, 80], to: [280, 200], parent: 0, dir: 'right' },
-        { from: [180, 80], to: [180, 320], parent: 0, dir: 'down' },
-        { from: [80, 200], to: [30, 200], parent: 1, dir: 'left' },
-        { from: [280, 200], to: [330, 200], parent: 2, dir: 'right' },
-        { from: [280, 200], to: [280, 320], parent: 2, dir: 'down' },
-        { from: [180, 320], to: [180, 370], parent: 3, dir: 'any' }
-    ]
-};
+let selectedPart = null;
+let partsCount = { L: 2, T: 1, CROSS: 1 };
 
-function getSVG(t) {
-    if(t === 'L') return '<path d="M20 5 V20 H35" />';
-    if(t === 'T') return '<path d="M5 20 H35 M20 20 V5" />';
-    if(t === 'CROSS') return '<path d="M5 20 H35 M20 5 V35" />';
+const sockets = [
+    { id: 0, x: 180, y: 80, part: null, rot: 0 },
+    { id: 1, x: 80,  y: 180, part: null, rot: 0 },
+    { id: 2, x: 280, y: 180, part: null, rot: 0 }
+];
+
+const cells = [
+    { x: 30, y: 180, r: 1 }, { x: 180, y: 280, r: 0 }, { x: 330, y: 180, r: 2 }
+];
+
+const wires = [
+    { from: [180, 0], to: [180, 80], powered: true },
+    { from: [180, 80], to: [80, 80], pId: 0, req: 'left' },
+    { from: [80, 80], to: [80, 180], pId: 0, req: 'left' },
+    { from: [180, 80], to: [280, 80], pId: 0, req: 'right' },
+    { from: [280, 80], to: [280, 180], pId: 0, req: 'right' },
+    { from: [180, 80], to: [180, 280], pId: 0, req: 'down' },
+    { from: [80, 180], to: [30, 180], pId: 1, req: 'left' },
+    { from: [280, 180], to: [330, 180], pId: 2, req: 'right' }
+];
+
+function selectPart(type) {
+    if (partsCount[type] <= 0) return;
+    selectedPart = type;
+    document.querySelectorAll('.inv-item').forEach(el => el.classList.remove('selected'));
+    document.getElementById('part' + (type==='CROSS'?'X':type)).classList.add('selected');
 }
 
 function init() {
-    config.knobs.forEach(k => {
+    sockets.forEach(s => {
         const div = document.createElement('div');
-        div.className = 'knob';
-        div.style.left = (k.x - 23) + 'px';
-        div.style.top = (k.y - 23) + 'px';
-        k.rot = Math.floor(Math.random()*4)*90;
-        div.style.transform = `rotate(${k.rot}deg)`;
-        div.innerHTML = `<svg viewBox="0 0 40 40">${getSVG(k.type)}</svg>`;
-        div.onclick = () => { k.rot = (k.rot + 90) % 360; div.style.transform = `rotate(${k.rot}deg)`; update(); };
-        k.el = div;
+        div.className = 'socket';
+        div.style.left = (s.x - 22) + 'px';
+        div.style.top = (s.y - 22) + 'px';
+        div.onclick = () => handleSocketClick(s, div);
+        s.el = div;
         board.appendChild(div);
     });
 
-    config.cells.forEach(c => {
+    cells.forEach(c => {
         const div = document.createElement('div');
         div.className = 'cell';
-        div.style.left = (c.x - 8) + 'px';
-        div.style.top = (c.y - 8) + 'px';
+        div.style.left = (c.x - 7) + 'px';
+        div.style.top = (c.y - 7) + 'px';
         c.el = div;
         board.appendChild(div);
     });
     update();
 }
 
-function update() {
-    // 邏輯掃描：根據旋轉角度決定電力傳導
-    const k = config.knobs;
-    
-    // T按鈕(k0)位於上方：電力從上方 180度(北)進入
-    // 若向左(rot 90)通左線，向右(rot 270)通右線，向下(rot 180)通下線
-    k[0].pLeft = (k[0].rot === 90 || k[0].rot === 180);
-    k[0].pRight = (k[0].rot === 270 || k[0].rot === 180);
-    k[0].pDown = (k[0].rot === 0 || k[0].rot === 90 || k[0].rot === 270); // T型向上或向兩側
+function handleSocketClick(s, el) {
+    if (!s.part && selectedPart) {
+        s.part = selectedPart;
+        partsCount[selectedPart]--;
+        selectedPart = null;
+        updateUI();
+    } else if (s.part) {
+        s.rot = (s.rot + 90) % 360;
+    }
+    update();
+}
 
-    // 根據父節點狀態更新線路
-    config.wires.forEach(w => {
-        if(w.parent === 0) {
-            if(w.dir === 'left') w.powered = k[0].pLeft;
-            if(w.dir === 'right') w.powered = k[0].pRight;
-            if(w.dir === 'down') w.powered = k[0].pDown;
+function update() {
+    // 傳導邏輯
+    wires.forEach(w => {
+        if (w.pId === undefined) return;
+        const s = sockets[w.pId];
+        w.powered = false;
+        if (s.part) {
+            // 簡化邏輯：如果有零件且轉向正確則導通
+            if (s.part === 'T' && (s.rot === 180 || s.rot === 90)) w.powered = true;
+            if (s.part === 'CROSS') w.powered = true;
+            if (s.part === 'L' && s.rot === 270 && w.req === 'left') w.powered = true;
         }
-        // 後續節點邏輯...
-        if(w.parent === 1) w.powered = k[0].pLeft && (k[1].rot === 270); // L型向左
-        if(w.parent === 2) {
-            if(w.dir === 'right') w.powered = k[0].pRight && (k[2].rot === 270);
-            if(w.dir === 'down') w.powered = k[0].pRight && (k[2].rot === 180);
-        }
-        if(w.parent === 3) w.powered = k[0].pDown;
     });
 
     // 更新視覺
-    let score = 0;
-    config.cells.forEach((c, i) => {
-        // 檢查該位置對應的線路是否通電
-        const lit = config.wires.some(w => w.powered && w.to[0] === c.x && w.to[1] === c.y);
-        c.el.classList.toggle('on', lit);
-        if(lit) score++;
+    sockets.forEach(s => {
+        if (s.part) {
+            s.el.classList.add('filled');
+            s.el.classList.toggle('powered', s.id === 0 || wires.some(w => w.powered && w.to[0] === s.x));
+            s.el.style.transform = `rotate(${s.rot}deg)`;
+            s.el.innerHTML = `<svg viewBox="0 0 40 40">${getSVG(s.part)}</svg>`;
+        }
     });
 
-    k.forEach(kn => kn.el.classList.toggle('on', kn.id === 0 || config.wires.some(w => w.powered && w.to[0] === kn.x && w.to[1] === kn.y)));
-    
-    document.getElementById('stat').innerText = `NODES: ${score} / 4`;
+    let score = 0;
+    cells.forEach(c => {
+        const lit = wires.some(w => w.powered && w.to[0] === c.x && w.to[1] === c.y);
+        c.el.classList.toggle('lit', lit);
+        if (lit) score++;
+    });
+    document.getElementById('stat').innerText = `NODES: ${score} / 3`;
     draw();
 }
 
-function draw() {
-    ctx.clearRect(0, 0, 360, 400);
-    config.wires.forEach(w => {
-        ctx.beginPath();
-        ctx.moveTo(w.from[0], w.from[1]);
-        ctx.lineTo(w.to[0], w.to[1]);
-        
-        // 沒電時：深灰色
-        ctx.strokeStyle = '#222';
-        ctx.lineWidth = 4;
-        ctx.stroke();
+function getSVG(t) {
+    if(t === 'L') return '<path d="M20 5 V20 H35" />';
+    if(t === 'T') return '<path d="M5 20 H35 M20 20 V5" />';
+    return '<path d="M5 20 H35 M20 5 V35" />';
+}
 
-        // 有電時：亮綠色
-        if(w.powered) {
-            ctx.strokeStyle = '#3cf08d';
-            ctx.shadowBlur = 8;
-            ctx.shadowColor = '#3cf08d';
-            ctx.stroke();
-            ctx.shadowBlur = 0;
-        }
+function updateUI() {
+    document.querySelectorAll('.inv-item').forEach(el => el.classList.remove('selected'));
+    document.getElementById('partL').querySelector('.inv-count').innerText = `L (x${partsCount.L})`;
+    document.getElementById('partT').querySelector('.inv-count').innerText = `T (x${partsCount.T})`;
+    document.getElementById('partX').querySelector('.inv-count').innerText = `X (x${partsCount.CROSS})`;
+}
+
+function resetBoard() {
+    sockets.forEach(s => { s.part = null; s.rot = 0; s.el.innerHTML = ''; s.el.classList.remove('filled','powered'); });
+    partsCount = { L: 2, T: 1, CROSS: 1 };
+    updateUI(); update();
+}
+
+function draw() {
+    ctx.clearRect(0,0,360,360);
+    wires.forEach(w => {
+        ctx.beginPath(); ctx.moveTo(w.from[0], w.from[1]); ctx.lineTo(w.to[0], w.to[1]);
+        ctx.strokeStyle = w.powered ? '#3cf08d' : '#222';
+        ctx.lineWidth = 4; ctx.stroke();
     });
 }
 
