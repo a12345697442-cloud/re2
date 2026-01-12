@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RE2 ROTARY - CLEAR VISION</title>
+    <title>RE2 ROTARY - INTERACTIVE FIX</title>
     <style>
         @font-face {
             font-family: 'RE_Font';
@@ -14,7 +14,6 @@
             --pwr-color: #f1c40f; 
             --bg-color: #050505;
             --re-red: #ff0000;
-            --ring-border: #444;
         }
 
         body { 
@@ -26,74 +25,82 @@
             overflow: hidden;
         }
 
-        h2 { color: var(--re-red); text-transform: uppercase; letter-spacing: 10px; margin-bottom: 30px; font-size: 2.2em; text-shadow: 0 0 10px rgba(255,0,0,0.5); }
+        h2 { color: var(--re-red); text-transform: uppercase; letter-spacing: 10px; margin-bottom: 30px; font-size: 2.2em; text-shadow: 0 0 15px rgba(255,0,0,0.4); }
 
         #game-container {
             position: relative;
             width: 550px; height: 550px;
             display: flex; justify-content: center; align-items: center;
-            background: #0a0a0a; border-radius: 50%;
-            border: 4px solid #222; box-shadow: 0 0 100px #000;
         }
 
-        /* 注入點明確化 */
-        .source-indicator {
-            position: absolute; top: -50px; 
-            padding: 10px 20px; border: 1px solid var(--pwr-color);
-            color: var(--pwr-color); font-weight: bold; font-size: 1.2em;
-            text-shadow: 0 0 10px var(--pwr-color); animation: pulse 1.5s infinite;
+        /* 核心電力入口標示 */
+        .power-in-box {
+            position: absolute; top: -40px; 
+            border: 2px solid var(--pwr-color); padding: 5px 15px;
+            color: var(--pwr-color); font-weight: bold;
+            box-shadow: 0 0 15px rgba(241, 196, 15, 0.3);
+            animation: pulse 1.5s infinite;
         }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .power-in-arrow {
+            position: absolute; top: 0px; font-size: 30px; color: var(--pwr-color);
+            z-index: 20; text-shadow: 0 0 10px var(--pwr-color);
+        }
 
+        @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.7; transform: scale(0.95); } }
+
+        /* 圓環容器 - 關鍵修復：pointer-events: none 讓點擊穿透 */
         .ring {
             position: absolute;
-            border: 3px solid var(--ring-border);
+            border: 6px solid #222;
             border-radius: 50%;
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            cursor: pointer;
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            pointer-events: none; /* 預設不阻擋點擊 */
             box-sizing: border-box;
+            display: flex; justify-content: center; align-items: center;
         }
 
-        /* 選取提示：讓玩家知道這是一層 */
-        .ring:hover:not(.locked) {
-            border-color: #777;
-            box-shadow: inset 0 0 20px rgba(255, 255, 255, 0.05), 0 0 15px rgba(255, 255, 255, 0.1);
+        /* 實際可點擊的區域 - 只有邊框部分可點擊 */
+        .ring::before {
+            content: '';
+            position: absolute;
+            width: 100%; height: 100%;
+            border-radius: 50%;
+            border: 20px solid transparent; /* 增加點擊判定寬度 */
+            pointer-events: auto; /* 只有這圈邊界可以點擊 */
+            cursor: pointer;
         }
 
-        /* 固定層標示 */
-        .ring.locked { 
-            cursor: not-allowed; 
-            border: 3px dashed #600;
-        }
-        .ring.locked::after {
-            content: 'FIXED'; position: absolute; top: -15px; left: 50%; transform: translateX(-50%);
-            background: #600; color: #fff; font-size: 10px; padding: 2px 5px;
-        }
+        .ring:hover { border-color: #555; box-shadow: 0 0 20px rgba(255,255,255,0.05); }
 
-        /* 接點視覺：明顯的刷頭 */
+        .ring.locked { border-style: dashed; border-color: #500; cursor: not-allowed; }
+        .ring.locked::before { pointer-events: none; }
+
+        /* 接點視覺：電刷 */
         .path {
             position: absolute;
-            background: #333;
-            width: 12px; height: 25px;
-            top: -14px; left: calc(50% - 6px);
-            border-radius: 2px;
-            transition: background 0.3s;
+            background: #444;
+            width: 14px; height: 30px;
+            top: -18px; left: calc(50% - 7px);
+            border-radius: 3px;
+            z-index: 10;
         }
 
+        /* 通電發光 */
+        .powered { border-color: #444 !important; }
         .powered .path {
             background: var(--pwr-color) !important;
-            box-shadow: 0 0 15px var(--pwr-color), 0 0 30px var(--pwr-color);
+            box-shadow: 0 0 20px var(--pwr-color), 0 0 40px var(--pwr-color);
         }
 
         #core {
-            width: 80px; height: 80px; background: #111;
-            border: 4px double #444; border-radius: 50%;
-            z-index: 10; display: flex; justify-content: center; align-items: center;
-            font-size: 0.8em; color: #444; transition: 0.5s;
+            width: 90px; height: 90px; background: #000;
+            border: 4px solid #333; border-radius: 50%;
+            z-index: 20; display: flex; justify-content: center; align-items: center;
+            font-weight: bold; color: #333; transition: 0.5s;
         }
         #core.active { 
-            background: #222; border-color: var(--pwr-color); color: var(--pwr-color);
-            box-shadow: 0 0 40px var(--pwr-color); text-shadow: 0 0 10px var(--pwr-color);
+            border-color: var(--pwr-color); color: var(--pwr-color);
+            box-shadow: 0 0 50px var(--pwr-color); background: #221a00;
         }
 
         .overlay { 
@@ -108,137 +115,131 @@
         }
 
         .timer { position: absolute; top: 30px; right: 40px; color: #f00; font-size: 1.5em; }
-        .hint { position: absolute; bottom: 30px; color: #666; font-size: 0.9em; letter-spacing: 2px; }
+        .instruction { position: absolute; bottom: 40px; color: #555; letter-spacing: 2px; }
     </style>
 </head>
 <body>
 
-    <div class="timer">LIMIT: <span id="time-display">60</span>s</div>
+    <div class="timer">STABILITY: <span id="time-display">60</span>s</div>
     <h2>ROTARY SYSTEM</h2>
     
     <div id="game-container">
-        <div class="source-indicator">MAIN INPUT (12:00)</div>
+        <div class="power-in-box">POWER INPUT</div>
+        <div class="power-in-arrow">▼</div>
         <div id="core">LOCKED</div>
     </div>
 
-    <div class="hint">CLICK THE RINGS TO ALIGN THE YELLOW CONTACTS TO THE TOP</div>
+    <p class="instruction">ALIGN ALL YELLOW BRUSHES TO THE TOP INDICATOR</p>
 
     <div id="overlay" class="overlay">
         <h1 id="status-text" class="stranger-text"></h1>
-        <button style="margin-top:50px; background:transparent; color:#fff; border:1px solid #666; padding:15px 40px; cursor:pointer;" onclick="location.reload()">RE-INITIALIZE</button>
+        <button style="margin-top:50px; background:transparent; color:#fff; border:1px solid #666; padding:15px 40px; cursor:pointer;" onclick="location.reload()">RETRY</button>
     </div>
 
 <script>
-    // 每個環的屬性：contacts 是相對於環自己的角度
     const ringConfig = [
-        { id: 3, size: 480, contacts: [0, 90, 225], rot: 0, speed: 45, locked: false },  // 最外
-        { id: 2, size: 360, contacts: [0, 180], rot: 0, speed: 90, locked: false },      // 中外
-        { id: 1, size: 240, contacts: [0, 135, 270], rot: 0, speed: 45, locked: true }, // 固定參考層
-        { id: 0, size: 140, contacts: [0, 180], rot: 0, speed: 90, locked: false }       // 中心
+        { id: 3, size: 480, contacts: [0, 135], rot: 0, speed: 45, locked: false },  // 最外
+        { id: 2, size: 360, contacts: [0, 270], rot: 0, speed: 90, locked: false },  // 中外
+        { id: 1, size: 240, contacts: [0, 90, 180], rot: 0, speed: 45, locked: true }, // 固定層
+        { id: 0, size: 140, contacts: [0, 180], rot: 0, speed: 90, locked: false }    // 最內
     ];
 
-    let timeLeft = 60;
-    let isWin = false;
+    let timeLeft = 60, isWin = false, timerId = null;
 
-    function initGame() {
+    function init() {
         const container = document.getElementById('game-container');
         
-        ringConfig.forEach((cfg, index) => {
+        ringConfig.forEach((cfg, idx) => {
             const ring = document.createElement('div');
             ring.className = `ring ${cfg.locked ? 'locked' : ''}`;
-            ring.id = `ring-${index}`;
+            ring.id = `ring-${idx}`;
             ring.style.width = cfg.size + 'px';
             ring.style.height = cfg.size + 'px';
-            ring.style.zIndex = 5 - index;
             
-            // 隨機初始角度 (必須是 45 的倍數)
-            cfg.rot = (Math.floor(Math.random() * 8) * 45);
+            // 隨機初始角度
+            cfg.rot = Math.floor(Math.random() * 8) * 45;
             ring.style.transform = `rotate(${cfg.rot}deg)`;
 
-            // 建立實體接點 (黃色電刷)
             cfg.contacts.forEach(angle => {
-                const path = document.createElement('div');
-                path.className = 'path';
-                // 利用 transform-origin 圍繞圓心旋轉
-                path.style.transformOrigin = `6px ${cfg.size/2 + 14}px`;
-                path.style.transform = `rotate(${angle}deg)`;
-                ring.appendChild(path);
+                const p = document.createElement('div');
+                p.className = 'path';
+                p.style.transformOrigin = `7px ${cfg.size/2 + 18}px`;
+                p.style.transform = `rotate(${angle}deg)`;
+                ring.appendChild(p);
             });
 
+            // 修復後的點擊事件
             if(!cfg.locked) {
-                ring.onclick = () => rotateRing(index);
+                ring.addEventListener('click', (e) => {
+                    // 防止事件冒泡影響其他層
+                    e.stopPropagation();
+                    rotateRing(idx);
+                });
             }
 
             container.appendChild(ring);
         });
 
         startTimer();
-        checkConnection();
+        check();
     }
 
     function rotateRing(idx) {
         if(isWin) return;
         
-        // 旋轉
+        // 主環旋轉
         ringConfig[idx].rot = (ringConfig[idx].rot + ringConfig[idx].speed) % 360;
-        document.getElementById(`ring-${idx}`).style.transform = `rotate(${ringConfig[idx].rot}deg)`;
+        updateUI(idx);
 
-        // 難度機制：連動
-        if(idx === 3) { // 轉最外圈，連動中心圈反向
+        // 連動邏輯：讓遊戲變難
+        if(idx === 3) { // 轉最外層，中心層反向轉
             ringConfig[0].rot = (ringConfig[0].rot - 45) % 360;
-            document.getElementById(`ring-0`).style.transform = `rotate(${ringConfig[0].rot}deg)`;
+            updateUI(0);
         }
-        
-        if(idx === 2) { // 轉中外圈，連動最外圈順向
-            ringConfig[3].rot = (ringConfig[3].rot + 45) % 360;
-            document.getElementById(`ring-3`).style.transform = `rotate(${ringConfig[3].rot}deg)`;
+        if(idx === 0) { // 轉中心層，中外層順向轉
+            ringConfig[2].rot = (ringConfig[2].rot + 45) % 360;
+            updateUI(2);
         }
 
-        // 每次旋轉後立即檢查
-        setTimeout(checkConnection, 400);
+        check();
     }
 
-    function checkConnection() {
-        let allAligned = true;
+    function updateUI(idx) {
+        document.getElementById(`ring-${idx}`).style.transform = `rotate(${ringConfig[idx].rot}deg)`;
+    }
 
+    function check() {
+        let winCount = 0;
         ringConfig.forEach((cfg, i) => {
-            const ringEl = document.getElementById(`ring-${i}`);
-            
-            // 關鍵邏輯：接點原始角度 + 目前環的旋轉角度，總和必須指向 0 (12 點鐘)
-            // 因為 CSS rotate 是順時針，所以要 (contact + rot) % 360 == 0
-            let isAligned = cfg.contacts.some(cAngle => {
-                let currentPos = (cAngle + cfg.rot) % 360;
-                while(currentPos < 0) currentPos += 360;
-                return Math.abs(currentPos) < 5 || Math.abs(currentPos - 360) < 5;
+            const el = document.getElementById(`ring-${i}`);
+            // 判斷接點是否指向頂部 (0度)
+            let aligned = cfg.contacts.some(a => {
+                let current = (a + cfg.rot) % 360;
+                while(current < 0) current += 360;
+                return Math.abs(current) < 5 || Math.abs(current - 360) < 5;
             });
 
-            if (isAligned) {
-                ringEl.classList.add('powered');
+            if(aligned) {
+                el.classList.add('powered');
+                winCount++;
             } else {
-                ringEl.classList.remove('powered');
-                allAligned = false; // 只要有一層沒對準 12 點鐘，就沒通
+                el.classList.remove('powered');
             }
         });
 
-        if(allAligned) {
+        if(winCount === ringConfig.length) {
+            isWin = true;
             document.getElementById('core').classList.add('active');
-            document.getElementById('core').innerText = "OPEN";
-            victory();
-        } else {
-            document.getElementById('core').classList.remove('active');
-            document.getElementById('core').innerText = "LOCKED";
+            document.getElementById('core').innerText = "ONLINE";
+            clearInterval(timerId);
+            setTimeout(showVictory, 800);
         }
     }
 
-    function victory() {
-        isWin = true;
-        clearInterval(timerId);
-        setTimeout(() => {
-            const overlay = document.getElementById('overlay');
-            const text = document.getElementById('status-text');
-            text.innerText = "Congratulations, stranger!\nPlease claim your reward.";
-            overlay.style.display = 'flex';
-        }, 1000);
+    function showVictory() {
+        const o = document.getElementById('overlay');
+        document.getElementById('status-text').innerText = "Congratulations, stranger!\nPlease claim your reward.";
+        o.style.display = 'flex';
     }
 
     function startTimer() {
@@ -248,15 +249,14 @@
                 document.getElementById('time-display').innerText = timeLeft;
                 if(timeLeft <= 0) {
                     clearInterval(timerId);
-                    document.getElementById('status-text').innerText = "YOU ARE DEAD";
-                    document.getElementById('status-text').className = "";
-                    document.getElementById('overlay').style.display = 'flex';
+                    alert("POWER LOSS: RETRYING...");
+                    location.reload();
                 }
             }
         }, 1000);
     }
 
-    initGame();
+    init();
 </script>
 </body>
 </html>
