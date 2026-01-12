@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RE2 CIRCUIT - ROTARY DIAL</title>
+    <title>RE2 ROTARY - CLEAR VISION</title>
     <style>
         @font-face {
             font-family: 'RE_Font';
@@ -13,8 +13,8 @@
         :root { 
             --pwr-color: #f1c40f; 
             --bg-color: #050505;
-            --re-red: #8b0000;
-            --ring-border: #333;
+            --re-red: #ff0000;
+            --ring-border: #444;
         }
 
         body { 
@@ -26,94 +26,115 @@
             overflow: hidden;
         }
 
-        h2 { color: var(--re-red); text-transform: uppercase; letter-spacing: 10px; margin-bottom: 20px; font-size: 2.2em; }
+        h2 { color: var(--re-red); text-transform: uppercase; letter-spacing: 10px; margin-bottom: 30px; font-size: 2.2em; text-shadow: 0 0 10px rgba(255,0,0,0.5); }
 
         #game-container {
             position: relative;
-            width: 500px;
-            height: 500px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background: radial-gradient(circle, #111 0%, #000 70%);
-            border-radius: 50%;
-            border: 10px solid #222;
-            box-shadow: 0 0 50px #000;
+            width: 550px; height: 550px;
+            display: flex; justify-content: center; align-items: center;
+            background: #0a0a0a; border-radius: 50%;
+            border: 4px solid #222; box-shadow: 0 0 100px #000;
         }
 
-        /* 注入點 */
-        .power-source {
-            position: absolute; top: -40px; color: var(--pwr-color);
-            font-weight: bold; letter-spacing: 3px; text-shadow: 0 0 10px var(--pwr-color);
+        /* 注入點明確化 */
+        .source-indicator {
+            position: absolute; top: -50px; 
+            padding: 10px 20px; border: 1px solid var(--pwr-color);
+            color: var(--pwr-color); font-weight: bold; font-size: 1.2em;
+            text-shadow: 0 0 10px var(--pwr-color); animation: pulse 1.5s infinite;
         }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
         .ring {
             position: absolute;
-            border: 4px solid var(--ring-border);
+            border: 3px solid var(--ring-border);
             border-radius: 50%;
-            transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             cursor: pointer;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            box-sizing: border-box;
         }
 
-        .ring:hover { border-color: #555; background: rgba(255,255,255,0.02); }
-        .ring.locked { cursor: not-allowed; border-color: var(--re-red); opacity: 0.8; }
-        .ring.locked::after { content: 'LOCKED'; position: absolute; font-size: 10px; color: #f00; top: 10px; }
+        /* 選取提示：讓玩家知道這是一層 */
+        .ring:hover:not(.locked) {
+            border-color: #777;
+            box-shadow: inset 0 0 20px rgba(255, 255, 255, 0.05), 0 0 15px rgba(255, 255, 255, 0.1);
+        }
 
-        /* 線路外觀 */
+        /* 固定層標示 */
+        .ring.locked { 
+            cursor: not-allowed; 
+            border: 3px dashed #600;
+        }
+        .ring.locked::after {
+            content: 'FIXED'; position: absolute; top: -15px; left: 50%; transform: translateX(-50%);
+            background: #600; color: #fff; font-size: 10px; padding: 2px 5px;
+        }
+
+        /* 接點視覺：明顯的刷頭 */
         .path {
             position: absolute;
-            background: #222;
-            transition: background 0.3s, box-shadow 0.3s;
+            background: #333;
+            width: 12px; height: 25px;
+            top: -14px; left: calc(50% - 6px);
+            border-radius: 2px;
+            transition: background 0.3s;
         }
-        .powered .path { background: var(--pwr-color); box-shadow: 0 0 15px var(--pwr-color); }
 
-        /* 核心 */
+        .powered .path {
+            background: var(--pwr-color) !important;
+            box-shadow: 0 0 15px var(--pwr-color), 0 0 30px var(--pwr-color);
+        }
+
         #core {
-            width: 60px; height: 60px; background: #111;
-            border: 4px solid #444; border-radius: 50%;
+            width: 80px; height: 80px; background: #111;
+            border: 4px double #444; border-radius: 50%;
             z-index: 10; display: flex; justify-content: center; align-items: center;
+            font-size: 0.8em; color: #444; transition: 0.5s;
         }
-        #core.active { background: var(--pwr-color); box-shadow: 0 0 30px var(--pwr-color); border-color: #fff; }
+        #core.active { 
+            background: #222; border-color: var(--pwr-color); color: var(--pwr-color);
+            box-shadow: 0 0 40px var(--pwr-color); text-shadow: 0 0 10px var(--pwr-color);
+        }
 
-        /* 覆蓋層 */
         .overlay { 
             position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
             background: rgba(0,0,0,0.98); display: none; flex-direction: column; 
-            justify-content: center; align-items: center; z-index: 100; text-align: center; 
+            justify-content: center; align-items: center; z-index: 100;
         }
         .stranger-text { 
             color: #f1c40f; font-size: 2.5em; line-height: 2.8; 
             letter-spacing: 18px; text-shadow: 0 0 40px rgba(241, 196, 15, 0.9); 
-            white-space: pre-line;
+            white-space: pre-line; text-align: center;
         }
 
-        .timer { position: absolute; top: 20px; right: 20px; color: #f00; font-size: 1.5em; letter-spacing: 3px; }
+        .timer { position: absolute; top: 30px; right: 40px; color: #f00; font-size: 1.5em; }
+        .hint { position: absolute; bottom: 30px; color: #666; font-size: 0.9em; letter-spacing: 2px; }
     </style>
 </head>
 <body>
 
-    <div class="timer">STABILITY: <span id="time-display">60</span>s</div>
+    <div class="timer">LIMIT: <span id="time-display">60</span>s</div>
     <h2>ROTARY SYSTEM</h2>
     
     <div id="game-container">
-        <div class="power-source">▼ POWER INPUT ▼</div>
-        <div id="core">CORE</div>
+        <div class="source-indicator">MAIN INPUT (12:00)</div>
+        <div id="core">LOCKED</div>
     </div>
+
+    <div class="hint">CLICK THE RINGS TO ALIGN THE YELLOW CONTACTS TO THE TOP</div>
 
     <div id="overlay" class="overlay">
         <h1 id="status-text" class="stranger-text"></h1>
-        <button id="retry-btn" style="margin-top:40px; background:transparent; color:#fff; border:1px solid #444; padding:15px 40px; cursor:pointer; font-family:'RE_Font';" onclick="location.reload()">RETRY</button>
+        <button style="margin-top:50px; background:transparent; color:#fff; border:1px solid #666; padding:15px 40px; cursor:pointer;" onclick="location.reload()">RE-INITIALIZE</button>
     </div>
 
 <script>
+    // 每個環的屬性：contacts 是相對於環自己的角度
     const ringConfig = [
-        { id: 3, size: 440, contacts: [0, 90, 180], rot: 0, speed: 90, locked: false },  // 最外環
-        { id: 2, size: 320, contacts: [45, 180, 270], rot: 0, speed: 45, locked: false }, // 中外環
-        { id: 1, size: 200, contacts: [0, 135, 225], rot: 0, speed: 90, locked: true },  // 中內環 (固定)
-        { id: 0, size: 100, contacts: [90, 270], rot: 0, speed: 45, locked: false }      // 中心環
+        { id: 3, size: 480, contacts: [0, 90, 225], rot: 0, speed: 45, locked: false },  // 最外
+        { id: 2, size: 360, contacts: [0, 180], rot: 0, speed: 90, locked: false },      // 中外
+        { id: 1, size: 240, contacts: [0, 135, 270], rot: 0, speed: 45, locked: true }, // 固定參考層
+        { id: 0, size: 140, contacts: [0, 180], rot: 0, speed: 90, locked: false }       // 中心
     ];
 
     let timeLeft = 60;
@@ -121,8 +142,7 @@
 
     function initGame() {
         const container = document.getElementById('game-container');
-        const core = document.getElementById('core');
-
+        
         ringConfig.forEach((cfg, index) => {
             const ring = document.createElement('div');
             ring.className = `ring ${cfg.locked ? 'locked' : ''}`;
@@ -131,20 +151,16 @@
             ring.style.height = cfg.size + 'px';
             ring.style.zIndex = 5 - index;
             
-            // 隨機初始角度
-            cfg.rot = Math.floor(Math.random() * 8) * 45;
+            // 隨機初始角度 (必須是 45 的倍數)
+            cfg.rot = (Math.floor(Math.random() * 8) * 45);
             ring.style.transform = `rotate(${cfg.rot}deg)`;
 
-            // 生成接點視覺
+            // 建立實體接點 (黃色電刷)
             cfg.contacts.forEach(angle => {
                 const path = document.createElement('div');
                 path.className = 'path';
-                path.style.width = '8px';
-                path.style.height = '40px';
-                path.style.position = 'absolute';
-                path.style.top = '-20px';
-                path.style.left = (cfg.size/2 - 4) + 'px';
-                path.style.transformOrigin = `4px ${cfg.size/2 + 20}px`;
+                // 利用 transform-origin 圍繞圓心旋轉
+                path.style.transformOrigin = `6px ${cfg.size/2 + 14}px`;
                 path.style.transform = `rotate(${angle}deg)`;
                 ring.appendChild(path);
             });
@@ -163,58 +179,54 @@
     function rotateRing(idx) {
         if(isWin) return;
         
-        // 旋轉點擊的環
-        ringConfig[idx].rot += ringConfig[idx].speed;
+        // 旋轉
+        ringConfig[idx].rot = (ringConfig[idx].rot + ringConfig[idx].speed) % 360;
         document.getElementById(`ring-${idx}`).style.transform = `rotate(${ringConfig[idx].rot}deg)`;
 
-        // 連動邏輯：轉動最外環(3)時，最內環(0)會跟著反向轉
-        if(idx === 3) {
-            ringConfig[0].rot -= 45;
+        // 難度機制：連動
+        if(idx === 3) { // 轉最外圈，連動中心圈反向
+            ringConfig[0].rot = (ringConfig[0].rot - 45) % 360;
             document.getElementById(`ring-0`).style.transform = `rotate(${ringConfig[0].rot}deg)`;
         }
         
-        // 轉動中心環(0)時，中外環(2)跟著轉
-        if(idx === 0) {
-            ringConfig[2].rot += 45;
-            document.getElementById(`ring-2`).style.transform = `rotate(${ringConfig[2].rot}deg)`;
+        if(idx === 2) { // 轉中外圈，連動最外圈順向
+            ringConfig[3].rot = (ringConfig[3].rot + 45) % 360;
+            document.getElementById(`ring-3`).style.transform = `rotate(${ringConfig[3].rot}deg)`;
         }
 
-        setTimeout(checkConnection, 500);
+        // 每次旋轉後立即檢查
+        setTimeout(checkConnection, 400);
     }
 
     function checkConnection() {
-        let currentPowerAngle = 0; // 電源從上方 0 度進入
-        let layersPowered = 0;
+        let allAligned = true;
 
-        for (let i = ringConfig.length - 1; i >= 0; i--) {
-            const cfg = ringConfig[i];
+        ringConfig.forEach((cfg, i) => {
             const ringEl = document.getElementById(`ring-${i}`);
             
-            // 計算目前哪些接點在「頂點 (12點鐘方向)」
-            // 公式：(接點原始角度 + 目前旋轉角度) % 360 是否等於目標進入角度
-            let hasConnection = cfg.contacts.some(contactAngle => {
-                let actual = (contactAngle + cfg.rot) % 360;
-                while(actual < 0) actual += 360;
-                return Math.abs(actual - 0) < 5; // 檢查是否對齊頂部
+            // 關鍵邏輯：接點原始角度 + 目前環的旋轉角度，總和必須指向 0 (12 點鐘)
+            // 因為 CSS rotate 是順時針，所以要 (contact + rot) % 360 == 0
+            let isAligned = cfg.contacts.some(cAngle => {
+                let currentPos = (cAngle + cfg.rot) % 360;
+                while(currentPos < 0) currentPos += 360;
+                return Math.abs(currentPos) < 5 || Math.abs(currentPos - 360) < 5;
             });
 
-            if (hasConnection) {
+            if (isAligned) {
                 ringEl.classList.add('powered');
-                layersPowered++;
             } else {
-                // 如果這一層斷了，後面全部斷
-                for(let j = i; j >= 0; j--) {
-                    document.getElementById(`ring-${j}`).classList.remove('powered');
-                }
-                break;
+                ringEl.classList.remove('powered');
+                allAligned = false; // 只要有一層沒對準 12 點鐘，就沒通
             }
-        }
+        });
 
-        if(layersPowered === ringConfig.length) {
+        if(allAligned) {
             document.getElementById('core').classList.add('active');
+            document.getElementById('core').innerText = "OPEN";
             victory();
         } else {
             document.getElementById('core').classList.remove('active');
+            document.getElementById('core').innerText = "LOCKED";
         }
     }
 
@@ -226,7 +238,7 @@
             const text = document.getElementById('status-text');
             text.innerText = "Congratulations, stranger!\nPlease claim your reward.";
             overlay.style.display = 'flex';
-        }, 800);
+        }, 1000);
     }
 
     function startTimer() {
@@ -236,8 +248,9 @@
                 document.getElementById('time-display').innerText = timeLeft;
                 if(timeLeft <= 0) {
                     clearInterval(timerId);
-                    alert("SYSTEM OVERLOAD: MISSION FAILED");
-                    location.reload();
+                    document.getElementById('status-text').innerText = "YOU ARE DEAD";
+                    document.getElementById('status-text').className = "";
+                    document.getElementById('overlay').style.display = 'flex';
                 }
             }
         }, 1000);
