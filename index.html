@@ -2,64 +2,286 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>電路維修 - 互動通電測試</title>
+    <title>電路維修 - 全局通電系統</title>
     <style>
-        body { background: #050505; color: #eee; text-align: center; font-family: sans-serif; margin: 0; }
-        h2 { margin: 10px 0 5px; color: #00ffcc; }
+        body { background: #050505; color: #eee; text-align: center; font-family: 'Segoe UI', sans-serif; margin: 0; }
+        h2 { margin: 10px 0 5px; color: #00ffcc; text-shadow: 0 0 10px #00ffcc; }
         p { margin: 5px 0 15px; color: #888; font-size: 14px; }
-        canvas { background: #000; border: 2px solid #555; cursor: pointer; display: block; margin: 0 auto; }
+        canvas { background: #000; border: 2px solid #333; cursor: pointer; display: block; margin: 0 auto; box-shadow: 0 0 30px #001100; }
     </style>
 </head>
 <body>
 
-    <h2>互動測試：點擊紅框旋轉符號</h2>
-    <p>提示：試著轉動最上面的符號，讓它開口向上，看看會發生什麼！</p>
+    <h2>系統狀態: <span id="status" style="color:#ff3333">斷線</span></h2>
+    <p>點擊紅框旋轉符號，接通電源線路以點亮綠燈</p>
     <canvas id="gameCanvas" width="800" height="850"></canvas>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
+        const statusEl = document.getElementById('status');
 
-        const CX = 400;
-        const CY = 480;
-        const BOX_SIZES = [600, 460, 320, 180];
-        const BOXES = BOX_SIZES.map(size => ({ x: CX - size/2, y: CY - size/2, w: size, h: size }));
-
-        // --- 1. 定義節點 (紅框與符號) ---
-        // type: 'T' 或 'L', rot: 0(上), 1(右), 2(下), 3(左)
+        const CX = 400; // 中心 X
+        const CY = 480; // 中心 Y
+        const BOX_SIZES = [600, 460, 320, 180]; // 4層大小
+        
+        // --- 1. 定義節點 (Nodes) ---
+        // 我們用一個網格概念來管理連接。
+        // 每個節點有一個唯一的 ID。
+        // Nodes 分佈在 4 層 (L0~L3) 的 4 個方位 (Top, Right, Bottom, Left)
+        // 加上電池入口 (Source) 和中心終點 (Center)
         let nodes = [];
-        BOXES.forEach((b, i) => {
-            // 隨機分配 T 或 L，並給一個初始角度
-            nodes.push({ x: CX, y: b.y, type: Math.random() > 0.5 ? 'T' : 'L', rot: Math.floor(Math.random()*4), id: `top_${i}` });
-            nodes.push({ x: CX, y: b.y + b.h, type: Math.random() > 0.5 ? 'T' : 'L', rot: Math.floor(Math.random()*4), id: `bottom_${i}` });
-            nodes.push({ x: b.x, y: CY, type: Math.random() > 0.5 ? 'T' : 'L', rot: Math.floor(Math.random()*4), id: `left_${i}` });
-            nodes.push({ x: b.x + b.w, y: CY, type: Math.random() > 0.5 ? 'T' : 'L', rot: Math.floor(Math.random()*4), id: `right_${i}` });
-        });
-
-        // 找出最上面的入口節點 (外圈上方的那個)
-        const topNode = nodes.find(n => n.id === 'top_0');
-
-        // --- 2. 定義電源目標 (角落) ---
-        const targets = [
-            {x: CX, y: CY},
-            {x: BOXES[0].x, y: BOXES[0].y}, {x: BOXES[0].x+BOXES[0].w, y: BOXES[0].y+BOXES[0].h},
-            {x: BOXES[1].x+BOXES[1].w, y: BOXES[1].y}, {x: BOXES[1].x, y: BOXES[1].y+BOXES[1].h},
-            {x: BOXES[3].x, y: BOXES[3].y}
-        ];
-
-        // --- 3. 通電狀態 ---
-        let isMainPowerOn = false;
-
-        // --- 4. 檢查通電邏輯 (簡易示範版) ---
-        function checkPower() {
-            // 規則：如果最上面的節點是 'T' 且開口向上(rot=0)，或是 'L' 且開口向上(rot=0 或 3)
-            // 這裡簡化：只要開口包含「向上」(0) 就算接通
-            const connectsUp = (topNode.type === 'T' && topNode.rot !== 2) || (topNode.type === 'L' && (topNode.rot === 0 || topNode.rot === 3));
-            
-            isMainPowerOn = connectsUp;
+        
+        // 輔助函數：建立節點
+        function createNode(id, x, y) {
+            return { 
+                id: id, x: x, y: y, 
+                type: Math.random() > 0.5 ? 'T' : 'L', 
+                rot: Math.floor(Math.random()*4), // 0:上, 1:右, 2:下, 3:左
+                powered: false 
+            };
         }
 
-        // --- 5. 繪圖主程式 ---
+        // 建立 16 個環狀節點
+        BOX_SIZES.forEach((size, i) => {
+            const half = size / 2;
+            nodes.push(createNode(`L${i}_T`, CX, CY - half)); // 上
+            nodes.push(createNode(`L${i}_R`, CX + half, CY)); // 右
+            nodes.push(createNode(`L${i}_B`, CX, CY + half)); // 下
+            nodes.push(createNode(`L${i}_L`, CX - half, CY)); // 左
+        });
+
+        // 建立特殊節點
+        // Battery Source 視為一個虛擬節點，位置在最外層上方更上面
+        const sourceNode = { id: 'SOURCE', x: CX, y: 50, type: 'SOURCE', rot: 2, powered: true }; 
+        
+        // --- 2. 定義線段 (Segments) ---
+        // 這是圖論中的 "邊" (Edges)。每個線段連接兩個節點，或者節點與目標。
+        // pathType: 'straight' (直線) 或 'corner' (折線)
+        let segments = [];
+
+        function addSegment(n1_id, n2_id, type, points) {
+            segments.push({ 
+                from: n1_id, to: n2_id, 
+                type: type, // 'line' or 'corner'
+                points: points, // 繪圖用的座標點陣列
+                powered: false 
+            });
+        }
+
+        // A. 垂直軸連接 (Source -> L0_T -> L1_T ... -> Center ... -> L0_B)
+        // Source -> L0_T
+        addSegment('SOURCE', 'L0_T', 'line', [[CX, 70], [CX, CY - 300]]);
+        // Top Axis (L0_T -> L1_T -> L2_T -> L3_T)
+        for(let i=0; i<3; i++) addSegment(`L${i}_T`, `L${i+1}_T`, 'line', [[CX, CY-BOX_SIZES[i]/2], [CX, CY-BOX_SIZES[i+1]/2]]);
+        // Top Inner -> Center (L3_T -> Center)
+        // 這裡我們把 Center 視為一個隱形的匯流點，或者直接連通對面
+        // 為了簡化，我們讓 L3_T 與 L3_B 直接相連 (穿過中心)
+        addSegment('L3_T', 'L3_B', 'line', [[CX, CY-90], [CX, CY+90]]);
+        // Bottom Axis (L3_B -> L2_B -> L1_B -> L0_B)
+        for(let i=3; i>0; i--) addSegment(`L${i}_B`, `L${i-1}_B`, 'line', [[CX, CY+BOX_SIZES[i]/2], [CX, CY+BOX_SIZES[i-1]/2]]);
+
+        // B. 水平軸連接 (L0_L -> ... -> L3_L -> L3_R -> ... -> L0_R)
+        // Left Axis
+        for(let i=0; i<3; i++) addSegment(`L${i}_L`, `L${i+1}_L`, 'line', [[CX-BOX_SIZES[i]/2, CY], [CX-BOX_SIZES[i+1]/2, CY]]);
+        // Center Horizontal (L3_L -> L3_R)
+        addSegment('L3_L', 'L3_R', 'line', [[CX-90, CY], [CX+90, CY]]);
+        // Right Axis
+        for(let i=3; i>0; i--) addSegment(`L${i}_R`, `L${i-1}_R`, 'line', [[CX+BOX_SIZES[i]/2, CY], [CX+BOX_SIZES[i-1]/2, CY]]);
+
+        // C. 環狀連接 (方框的四個角)
+        // 每個層級 i: Top <-> Right (右上角), Right <-> Bottom (右下角), ...
+        BOX_SIZES.forEach((size, i) => {
+            const h = size/2;
+            // Top -> Right (右上角)
+            addSegment(`L${i}_T`, `L${i}_R`, 'corner', [[CX, CY-h], [CX+h, CY-h], [CX+h, CY]]);
+            // Right -> Bottom (右下角)
+            addSegment(`L${i}_R`, `L${i}_B`, 'corner', [[CX+h, CY], [CX+h, CY+h], [CX, CY+h]]);
+            // Bottom -> Left (左下角)
+            addSegment(`L${i}_B`, `L${i}_L`, 'corner', [[CX, CY+h], [CX-h, CY+h], [CX-h, CY]]);
+            // Left -> Top (左上角)
+            addSegment(`L${i}_L`, `L${i}_T`, 'corner', [[CX-h, CY], [CX-h, CY-h], [CX, CY-h]]);
+        });
+
+        // --- 3. 電源目標 (Targets) ---
+        // 定義目標位置以及它依附在哪個線段上 (或是哪個節點旁)
+        // 為了簡化邏輯，我們判斷：如果某個線段亮了，且該線段經過這個目標，目標就亮。
+        // 或者更簡單：目標連結到特定的節點方向。
+        // 這裡採用「依附線段」法。我們手動定義目標位置，並標記它屬於哪條路徑。
+        
+        let targets = [
+            // 格式: {x, y, segments: [index1, index2...], powered: false}
+            // 這裡我們直接用座標找線段 (Run-time matching) 或是硬編碼。
+            // 為了精確，我們指定它位於 "L0_T 到 L0_R" 這段線上 (外圈右上角)
+        ];
+
+        // 輔助：找線段索引
+        function findSegIndex(id1, id2) {
+            return segments.findIndex(s => (s.from===id1 && s.to===id2) || (s.from===id2 && s.to===id1));
+        }
+
+        // 配置 6 個電源點 (位於角落)
+        // 1. 外圈右上角 (L0_T <-> L0_R)
+        targets.push({ x: CX + 300, y: CY - 300, segIdx: findSegIndex('L0_T', 'L0_R') });
+        // 2. 外圈左下角 (L0_B <-> L0_L)
+        targets.push({ x: CX - 300, y: CY + 300, segIdx: findSegIndex('L0_B', 'L0_L') });
+        // 3. 第二圈右下角 (L1_R <-> L1_B)
+        targets.push({ x: CX + 230, y: CY + 230, segIdx: findSegIndex('L1_R', 'L1_B') });
+        // 4. 第三圈左上角 (L2_L <-> L2_T)
+        targets.push({ x: CX - 160, y: CY - 160, segIdx: findSegIndex('L2_L', 'L2_T') });
+        // 5. 內圈右上角 (L3_T <-> L3_R)
+        targets.push({ x: CX + 90, y: CY - 90, segIdx: findSegIndex('L3_T', 'L3_R') });
+        // 6. 中心 (位於 L3_L <-> L3_R 的水平線上)
+        targets.push({ x: CX, y: CY, segIdx: findSegIndex('L3_L', 'L3_R') });
+
+
+        // --- 4. 核心演算法：通電計算 (BFS) ---
+        function calculatePower() {
+            // 重置所有狀態
+            nodes.forEach(n => n.powered = false);
+            segments.forEach(s => s.powered = false);
+            targets.forEach(t => t.powered = false);
+
+            // 佇列：從電池出發
+            // 電池連接著 L0_T
+            let queue = ['SOURCE']; 
+            // 標記 Source 節點有電 (雖然它不在 nodes 陣列中顯示，但邏輯上需要)
+            
+            // 初始檢查：Source 連接的第一條線 (Segment 0) 是否通電？
+            // Source 是無限電源，所以與它相連的線段永遠有電 (只要線段存在)
+            let firstSeg = segments.find(s => s.from === 'SOURCE');
+            if(firstSeg) {
+                firstSeg.powered = true;
+                queue.push(firstSeg.to); // 傳導到 L0_T
+            }
+
+            // 開始擴散
+            while(queue.length > 0) {
+                let currId = queue.shift();
+                let currNode = nodes.find(n => n.id === currId);
+                if (!currNode) continue;
+
+                currNode.powered = true;
+
+                // 檢查這個節點的 4 個方向是否導通
+                // T型: 3個方向通, 1個斷。rot=0(上) => 上右左通, 下斷 (即 index 2 斷)
+                // L型: 2個方向通。rot=0(上) => 上右通 (index 0, 1)
+                
+                // 定義方向映射: 0:Up, 1:Right, 2:Down, 3:Left
+                let ports = [];
+                if (currNode.type === 'T') {
+                    // T型：除了 (rot + 2) % 4 以外都通
+                    // 例如 rot=0 (開口向上), 缺口在下(2), 所以 0,1,3 通
+                    let block = (currNode.rot + 2) % 4;
+                    for(let d=0; d<4; d++) if(d !== block) ports.push(d);
+                } else {
+                    // L型：rot 和 (rot+1)%4 通
+                    // 例如 rot=0 => 0(Up) & 1(Right)
+                    ports.push(currNode.rot);
+                    ports.push((currNode.rot + 1) % 4);
+                }
+
+                // 尋找與此節點相連的所有線段
+                segments.forEach(seg => {
+                    // 找出這個線段是接在 currNode 的哪個方向？
+                    let neighborId = (seg.from === currId) ? seg.to : (seg.from === currId ? null : seg.from);
+                    if (!neighborId) return; // 這條線跟 currNode 無關
+                    if (seg.from !== currId && seg.to !== currId) return;
+                    neighborId = (seg.from === currId) ? seg.to : seg.from;
+
+                    // 判斷 neighbor 在 currNode 的哪個方位
+                    // 簡單幾何判斷
+                    let neighborNode = nodes.find(n => n.id === neighborId);
+                    // 特殊情況：如果連到的是 Center (我們用 L3_B 或 L3_R 代表穿過中心)
+                    // 這裡我們用座標差來算方向
+                    // 注意：y 座標越小是越上 (Up is negative dy)
+                    let dx = 0, dy = 0;
+                    if (neighborNode) {
+                        dx = neighborNode.x - currNode.x;
+                        dy = neighborNode.y - currNode.y;
+                    } else if (neighborId === 'SOURCE') {
+                        dx = 0; dy = -1; // Source 在上面
+                    }
+
+                    let dir = -1;
+                    if (Math.abs(dy) > Math.abs(dx)) {
+                        dir = dy < 0 ? 0 : 2; // Up : Down
+                    } else {
+                        dir = dx > 0 ? 1 : 3; // Right : Left
+                    }
+
+                    // 核心判斷：
+                    // 1. CurrNode 的接口是否有開向 dir ?
+                    // 2. 線段另一端的 NeighborNode 的接口是否有開向反方向 ? (雙向握手)
+                    // 如果 Neighbor 是 SOURCE，則永遠供電。
+                    // 如果線段已經亮了，就不用再處理。
+                    
+                    if (ports.includes(dir)) {
+                        // CurrNode 允許電流流向這個方向
+                        // 現在檢查 Neighbor 是否接收 (或是如果線段已經亮了，表示是從那邊流過來的)
+                        // 這裡我們簡化物理模型：只要 Source 流過來，且當前開關導通，線段就亮。
+                        // 然後電會傳到 Neighbor。Neighbor 之後會檢查它的接口能否接收。
+                        
+                        // 但正確邏輯是：只有兩端都通，線段才通？
+                        // 不，真實電路是：電流流到節點，節點內部的銅片連通了方向，電就流進線段。
+                        // 線段本身是導體。
+                        // 至於 Neighbor 能不能收，那是 Neighbor 的事。
+                        // 所以：只要 currNode 導通了這條線，這條線就亮，並且嘗試把電傳給 Neighbor。
+                        
+                        // 但是！必須確保這條線段是「入」還是「出」。
+                        // 如果線段已經 powered，代表它是電的來源，不需要再設為 true。
+                        // 如果線段未 powered，我們將其設為 true，並把 neighbor 加入 queue。
+                        
+                        // 修正：必須考慮 Neighbor 是否有「對接」。
+                        // 如果 Neighbor 是斷路（例如 T型屁股對著線），電應該停在 Neighbor 門口，線段是亮的，但 Neighbor 不會通電。
+                        // 所以：線段亮 = CurrNode 有電 + CurrNode 接口對準線段。
+                        
+                        // 避免無窮迴圈：如果線段已經亮了，就不重複加 neighbor
+                        if (!seg.powered) {
+                            seg.powered = true;
+                            
+                            // 檢查 Neighbor 是否能「接收」電力 (即接口對準)
+                            if (neighborNode) {
+                                let neighborPorts = [];
+                                if (neighborNode.type === 'T') {
+                                    let block = (neighborNode.rot + 2) % 4;
+                                    for(let d=0; d<4; d++) if(d !== block) neighborPorts.push(d);
+                                } else {
+                                    neighborPorts.push(neighborNode.rot);
+                                    neighborPorts.push((neighborNode.rot + 1) % 4);
+                                }
+                                // 反方向
+                                let incomeDir = (dir + 2) % 4;
+                                if (neighborPorts.includes(incomeDir)) {
+                                    // 成功進入下一個節點
+                                    queue.push(neighborId);
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            // 更新目標狀態
+            let litCount = 0;
+            targets.forEach(t => {
+                if (t.segIdx !== -1 && segments[t.segIdx].powered) {
+                    t.powered = true;
+                    litCount++;
+                }
+            });
+            
+            // 更新 UI 文字
+            if (litCount === targets.length) {
+                statusEl.innerHTML = "系統修復完成！ (100%)";
+                statusEl.style.color = "#00ff00";
+            } else {
+                statusEl.innerHTML = `電力供應中... (${litCount}/${targets.length})`;
+                statusEl.style.color = "#ffcc00";
+            }
+        }
+
+        // --- 5. 繪圖 (Draw) ---
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -68,82 +290,113 @@
             ctx.strokeStyle = "#00ffcc"; ctx.lineWidth = 2; ctx.setLineDash([]); ctx.strokeRect(CX - 50, 20, 100, 50);
             ctx.fillStyle = "#00ffcc"; ctx.font = "bold 16px Arial"; ctx.fillText("POWER", CX - 30, 52);
 
-            // B. 畫線路 (根據通電狀態改變樣式)
-            // 1. 電池引線 (永遠是實線，因為有電)
-            ctx.beginPath(); ctx.moveTo(CX, 70); ctx.lineTo(CX, BOXES[0].y - 25); ctx.stroke();
+            // B. 畫線段 (根據 powered 狀態)
+            segments.forEach(seg => {
+                ctx.beginPath();
+                if (seg.powered) {
+                    ctx.strokeStyle = "#00ffcc"; // 亮
+                    ctx.setLineDash([]);
+                    ctx.lineWidth = 3;
+                    ctx.shadowBlur = 15; ctx.shadowColor = "#00ffcc";
+                } else {
+                    ctx.strokeStyle = "#333";    // 暗
+                    ctx.setLineDash([5, 8]);
+                    ctx.lineWidth = 2;
+                    ctx.shadowBlur = 0;
+                }
 
-            // 2. 中心垂直主軸 (示範通電效果的線)
-            ctx.beginPath();
-            if (isMainPowerOn) {
-                ctx.strokeStyle = "#00ffcc"; // 通電：螢光綠實線
-                ctx.setLineDash([]);
-                ctx.shadowBlur = 10; ctx.shadowColor = "#00ffcc"; // 加點發光效果
-            } else {
-                ctx.strokeStyle = "#333";    // 未通電：暗灰虛線
-                ctx.setLineDash([5, 8]);
-                ctx.shadowBlur = 0;
-            }
-            ctx.moveTo(CX, BOXES[0].y + 25); ctx.lineTo(CX, BOXES[0].y + BOXES[0].h);
-            ctx.stroke();
-            // 重置陰影和樣式給其他線用
-            ctx.shadowBlur = 0; ctx.strokeStyle = "#333"; ctx.setLineDash([5, 8]);
+                // 繪製路徑 (支援折線)
+                if (seg.points.length > 0) {
+                    ctx.moveTo(seg.points[0][0], seg.points[0][1]);
+                    for(let i=1; i<seg.points.length; i++) {
+                        ctx.lineTo(seg.points[i][0], seg.points[i][1]);
+                    }
+                }
+                ctx.stroke();
+            });
+            ctx.shadowBlur = 0; // 重置陰影
 
-            // 3. 其他背景方框線 (暫時保持虛線)
-            ctx.beginPath();
-            BOXES.forEach(b => ctx.strokeRect(b.x, b.y, b.w, b.h));
-            ctx.moveTo(BOXES[0].x, CY); ctx.lineTo(BOXES[0].x + BOXES[0].w, CY); // 水平軸
-            ctx.stroke();
+            // C. 畫目標電源 (Corner Targets)
+            targets.forEach(t => {
+                ctx.beginPath();
+                if (t.powered) {
+                    ctx.fillStyle = "#00ff00"; // 亮綠
+                    ctx.strokeStyle = "#00ffcc";
+                    ctx.shadowBlur = 20; ctx.shadowColor = "#00ff00";
+                } else {
+                    ctx.fillStyle = "#003311"; // 暗綠
+                    ctx.strokeStyle = "#006644";
+                    ctx.shadowBlur = 0;
+                }
+                ctx.arc(t.x, t.y, 20, 0, Math.PI*2);
+                ctx.fill();
+                ctx.stroke();
+                // 燈芯
+                ctx.fillStyle = t.powered ? "#ffffff" : "#005533";
+                ctx.beginPath(); ctx.arc(t.x, t.y, 6, 0, Math.PI*2); ctx.fill();
+            });
+            ctx.shadowBlur = 0;
 
-            // C. 畫紅框與藍色符號
-            ctx.setLineDash([]);
+            // D. 畫紅框節點與符號
             nodes.forEach(n => {
                 // 紅框
-                ctx.strokeStyle = "red"; ctx.lineWidth = 2;
+                ctx.strokeStyle = "red"; ctx.lineWidth = 2; ctx.setLineDash([]);
                 ctx.strokeRect(n.x - 25, n.y - 25, 50, 50);
 
-                // 藍色符號
+                // 藍色符號 (旋轉)
                 ctx.save();
                 ctx.translate(n.x, n.y);
-                ctx.rotate(n.rot * Math.PI / 2); // 旋轉
-                ctx.strokeStyle = "#0099ff"; ctx.lineWidth = 4; ctx.lineCap = "round";
+                ctx.rotate(n.rot * Math.PI / 2);
+                
+                // 符號顏色：如果該節點有電，符號變亮白/亮藍；沒電則為深藍
+                ctx.strokeStyle = n.powered ? "#ffffff" : "#0055aa";
+                ctx.lineWidth = 4; ctx.lineCap = "round";
+                
                 ctx.beginPath();
                 if (n.type === 'T') {
-                    ctx.moveTo(-15, 0); ctx.lineTo(15, 0); ctx.moveTo(0, 0); ctx.lineTo(0, 15);
+                    // T: 左, 右, 上 (下是缺口)
+                    // 原圖 T 字：橫畫在下(-15~15, 0)，豎畫在上(0, 0~-15)? 
+                    // 根據前面定義 rot=0 是 "Up"。通常 T 字缺口對著下面。
+                    // 畫法：
+                    ctx.moveTo(-15, 0); ctx.lineTo(15, 0); // 橫
+                    ctx.moveTo(0, 0); ctx.lineTo(0, -15);  // 豎 (指向 Up)
+                    // 等等，這是 "倒T"。 T型 rot=0 通常指連通 Up, Right, Left。
+                    // 檢查 ports 邏輯：T型 (rot+2)%4 阻擋。 rot=0 block=2(Down).
+                    // 所以圖形應該是：Up, Left, Right 有線。
+                    // 我的畫法： (0, -15)是Up, (-15,0)是Left, (15,0)是Right. 正確。
                 } else if (n.type === 'L') {
+                    // L: rot=0 => Up(0) & Right(1)
                     ctx.moveTo(0, -15); ctx.lineTo(0, 0); ctx.lineTo(15, 0);
                 }
                 ctx.stroke();
                 ctx.restore();
             });
-
-            // D. 畫電源目標
-            targets.forEach(t => {
-                ctx.strokeStyle = "#00ffcc"; ctx.fillStyle = "#002211";
-                ctx.beginPath(); ctx.arc(t.x, t.y, 20, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-                ctx.fillStyle = "#00ffcc";
-                ctx.beginPath(); ctx.arc(t.x, t.y, 5, 0, Math.PI*2); ctx.fill();
-            });
         }
 
-        // --- 6. 點擊事件處理 ---
+        // --- 6. 互動 ---
         canvas.addEventListener('click', (e) => {
             const rect = canvas.getBoundingClientRect();
             const mx = e.clientX - rect.left;
             const my = e.clientY - rect.top;
 
-            // 檢查是否點擊到任何一個紅框
+            let changed = false;
             nodes.forEach(n => {
                 if (mx > n.x - 25 && mx < n.x + 25 && my > n.y - 25 && my < n.y + 25) {
-                    n.rot = (n.rot + 1) % 4; // 旋轉 90 度
-                    checkPower(); // 重新檢查電力
-                    draw(); // 重繪
+                    n.rot = (n.rot + 1) % 4;
+                    changed = true;
                 }
             });
+            
+            if(changed) {
+                calculatePower();
+                draw();
+            }
         });
 
-        // 初始執行
-        checkPower();
+        // 啟動
+        calculatePower();
         draw();
+
     </script>
 </body>
 </html>
