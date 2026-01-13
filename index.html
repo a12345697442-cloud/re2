@@ -1,104 +1,149 @@
-
-
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>電路維修 - 佈局優化版</title>
+    <title>電路維修 - 互動通電測試</title>
     <style>
-        body { background: #050505; color: #eee; text-align: center; font-family: sans-serif; }
-        canvas { background: #000; border: 2px solid #333; margin-top: 10px; }
+        body { background: #050505; color: #eee; text-align: center; font-family: sans-serif; margin: 0; }
+        h2 { margin: 10px 0 5px; color: #00ffcc; }
+        p { margin: 5px 0 15px; color: #888; font-size: 14px; }
+        canvas { background: #000; border: 2px solid #555; cursor: pointer; display: block; margin: 0 auto; }
     </style>
 </head>
 <body>
-    <h3 style="color:#00ffcc">佈局修正：解決電源遮擋 Power 入口問題</h3>
+
+    <h2>互動測試：點擊紅框旋轉符號</h2>
+    <p>提示：試著轉動最上面的符號，讓它開口向上，看看會發生什麼！</p>
     <canvas id="gameCanvas" width="800" height="850"></canvas>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
-        const CX = 400; 
-        const CY = 450; 
+        const CX = 400;
+        const CY = 480;
+        const BOX_SIZES = [600, 460, 320, 180];
+        const BOXES = BOX_SIZES.map(size => ({ x: CX - size/2, y: CY - size/2, w: size, h: size }));
 
-        // 4 層方框設定
-        const BOXES = [
-            { size: 600 }, // 第 1 層 (外)
-            { size: 460 }, // 第 2 層
-            { size: 320 }, // 第 3 層
-            { size: 180 }  // 第 4 層 (內)
+        // --- 1. 定義節點 (紅框與符號) ---
+        // type: 'T' 或 'L', rot: 0(上), 1(右), 2(下), 3(左)
+        let nodes = [];
+        BOXES.forEach((b, i) => {
+            // 隨機分配 T 或 L，並給一個初始角度
+            nodes.push({ x: CX, y: b.y, type: Math.random() > 0.5 ? 'T' : 'L', rot: Math.floor(Math.random()*4), id: `top_${i}` });
+            nodes.push({ x: CX, y: b.y + b.h, type: Math.random() > 0.5 ? 'T' : 'L', rot: Math.floor(Math.random()*4), id: `bottom_${i}` });
+            nodes.push({ x: b.x, y: CY, type: Math.random() > 0.5 ? 'T' : 'L', rot: Math.floor(Math.random()*4), id: `left_${i}` });
+            nodes.push({ x: b.x + b.w, y: CY, type: Math.random() > 0.5 ? 'T' : 'L', rot: Math.floor(Math.random()*4), id: `right_${i}` });
+        });
+
+        // 找出最上面的入口節點 (外圈上方的那個)
+        const topNode = nodes.find(n => n.id === 'top_0');
+
+        // --- 2. 定義電源目標 (角落) ---
+        const targets = [
+            {x: CX, y: CY},
+            {x: BOXES[0].x, y: BOXES[0].y}, {x: BOXES[0].x+BOXES[0].w, y: BOXES[0].y+BOXES[0].h},
+            {x: BOXES[1].x+BOXES[1].w, y: BOXES[1].y}, {x: BOXES[1].x, y: BOXES[1].y+BOXES[1].h},
+            {x: BOXES[3].x, y: BOXES[3].y}
         ];
 
-        function drawMap() {
+        // --- 3. 通電狀態 ---
+        let isMainPowerOn = false;
+
+        // --- 4. 檢查通電邏輯 (簡易示範版) ---
+        function checkPower() {
+            // 規則：如果最上面的節點是 'T' 且開口向上(rot=0)，或是 'L' 且開口向上(rot=0 或 3)
+            // 這裡簡化：只要開口包含「向上」(0) 就算接通
+            const connectsUp = (topNode.type === 'T' && topNode.rot !== 2) || (topNode.type === 'L' && (topNode.rot === 0 || topNode.rot === 3));
+            
+            isMainPowerOn = connectsUp;
+        }
+
+        // --- 5. 繪圖主程式 ---
+        function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 1. 電池 (POWER) 置於頂部，並拉開距離
-            ctx.fillStyle = "#1a1a1a";
-            ctx.fillRect(CX - 50, 10, 100, 50);
-            ctx.strokeStyle = "#00ffcc";
-            ctx.lineWidth = 2;
-            ctx.strokeRect(CX - 50, 10, 100, 50);
-            ctx.fillStyle = "#00ffcc";
-            ctx.font = "14px Arial";
-            ctx.fillText("POWER", CX - 26, 42);
-            
-            // 2. 灰色虛線電線 
-            ctx.strokeStyle = "#333";
-            ctx.setLineDash([5, 8]);
-            ctx.lineWidth = 2;
+            // A. 畫電池
+            ctx.fillStyle = "#1a1a1a"; ctx.fillRect(CX - 50, 20, 100, 50);
+            ctx.strokeStyle = "#00ffcc"; ctx.lineWidth = 2; ctx.setLineDash([]); ctx.strokeRect(CX - 50, 20, 100, 50);
+            ctx.fillStyle = "#00ffcc"; ctx.font = "bold 16px Arial"; ctx.fillText("POWER", CX - 30, 52);
+
+            // B. 畫線路 (根據通電狀態改變樣式)
+            // 1. 電池引線 (永遠是實線，因為有電)
+            ctx.beginPath(); ctx.moveTo(CX, 70); ctx.lineTo(CX, BOXES[0].y - 25); ctx.stroke();
+
+            // 2. 中心垂直主軸 (示範通電效果的線)
             ctx.beginPath();
+            if (isMainPowerOn) {
+                ctx.strokeStyle = "#00ffcc"; // 通電：螢光綠實線
+                ctx.setLineDash([]);
+                ctx.shadowBlur = 10; ctx.shadowColor = "#00ffcc"; // 加點發光效果
+            } else {
+                ctx.strokeStyle = "#333";    // 未通電：暗灰虛線
+                ctx.setLineDash([5, 8]);
+                ctx.shadowBlur = 0;
+            }
+            ctx.moveTo(CX, BOXES[0].y + 25); ctx.lineTo(CX, BOXES[0].y + BOXES[0].h);
+            ctx.stroke();
+            // 重置陰影和樣式給其他線用
+            ctx.shadowBlur = 0; ctx.strokeStyle = "#333"; ctx.setLineDash([5, 8]);
 
-            // 電池引線 (拉長距離，避免遮擋)
-            ctx.moveTo(CX, 60); ctx.lineTo(CX, CY - 300); 
-
-            // 畫 4 個嵌套方框
-            BOXES.forEach(box => {
-                const half = box.size / 2;
-                ctx.strokeRect(CX - half, CY - half, box.size, box.size);
-            });
-
-            // 畫十字軸線
-            const maxSize = BOXES[0].size / 2;
-            ctx.moveTo(CX, CY - maxSize); ctx.lineTo(CX, CY + maxSize); // 垂直
-            ctx.moveTo(CX - maxSize, CY); ctx.lineTo(CX + maxSize, CY); // 水平
+            // 3. 其他背景方框線 (暫時保持虛線)
+            ctx.beginPath();
+            BOXES.forEach(b => ctx.strokeRect(b.x, b.y, b.w, b.h));
+            ctx.moveTo(BOXES[0].x, CY); ctx.lineTo(BOXES[0].x + BOXES[0].w, CY); // 水平軸
             ctx.stroke();
 
-            // 3. 16 個紅框 (每圈 4 個，位於邊緣中點)
+            // C. 畫紅框與藍色符號
             ctx.setLineDash([]);
-            BOXES.forEach(box => {
-                const half = box.size / 2;
-                const pos = [
-                    {x: CX, y: CY - half}, {x: CX, y: CY + half}, // 上下
-                    {x: CX - half, y: CY}, {x: CX + half, y: CY}  // 左右
-                ];
-                pos.forEach(p => {
-                    ctx.strokeStyle = "red";
-                    ctx.lineWidth = 2;
-                    ctx.strokeRect(p.x - 25, p.y - 25, 50, 50);
-                });
+            nodes.forEach(n => {
+                // 紅框
+                ctx.strokeStyle = "red"; ctx.lineWidth = 2;
+                ctx.strokeRect(n.x - 25, n.y - 25, 50, 50);
+
+                // 藍色符號
+                ctx.save();
+                ctx.translate(n.x, n.y);
+                ctx.rotate(n.rot * Math.PI / 2); // 旋轉
+                ctx.strokeStyle = "#0099ff"; ctx.lineWidth = 4; ctx.lineCap = "round";
+                ctx.beginPath();
+                if (n.type === 'T') {
+                    ctx.moveTo(-15, 0); ctx.lineTo(15, 0); ctx.moveTo(0, 0); ctx.lineTo(0, 15);
+                } else if (n.type === 'L') {
+                    ctx.moveTo(0, -15); ctx.lineTo(0, 0); ctx.lineTo(15, 0);
+                }
+                ctx.stroke();
+                ctx.restore();
             });
 
-            // 4. 放置 6 個電源點 (精確避開 POWER 字樣與紅框)
-            // 將電源放在角落（對角線分佈），確保不會擋到垂直軸頂端的入口
-            const targets = [
-                {x: CX, y: CY}, // 1. 中心點
-                {x: CX - 300, y: CY - 300}, // 2. 最外圈左上
-                {x: CX + 300, y: CY + 300}, // 3. 最外圈右下
-                {x: CX + 230, y: CY - 230}, // 4. 第二圈右上
-                {x: CX - 160, y: CY + 160}, // 5. 第三圈左下
-                {x: CX + 90, y: CY - 90}    // 6. 第四圈右上
-            ];
-
+            // D. 畫電源目標
             targets.forEach(t => {
-                ctx.strokeStyle = "#00ffcc";
-                ctx.fillStyle = "#002211";
+                ctx.strokeStyle = "#00ffcc"; ctx.fillStyle = "#002211";
                 ctx.beginPath(); ctx.arc(t.x, t.y, 20, 0, Math.PI*2); ctx.fill(); ctx.stroke();
                 ctx.fillStyle = "#00ffcc";
                 ctx.beginPath(); ctx.arc(t.x, t.y, 5, 0, Math.PI*2); ctx.fill();
             });
         }
 
-        drawMap();
+        // --- 6. 點擊事件處理 ---
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+
+            // 檢查是否點擊到任何一個紅框
+            nodes.forEach(n => {
+                if (mx > n.x - 25 && mx < n.x + 25 && my > n.y - 25 && my < n.y + 25) {
+                    n.rot = (n.rot + 1) % 4; // 旋轉 90 度
+                    checkPower(); // 重新檢查電力
+                    draw(); // 重繪
+                }
+            });
+        });
+
+        // 初始執行
+        checkPower();
+        draw();
     </script>
 </body>
 </html>
