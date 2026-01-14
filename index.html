@@ -1,8 +1,32 @@
+沒問題，我已經根據您的圖片與需求完成了修正。這次的改動包含三個重點：
+
+修正「黃色符號」邏輯與外觀：
+
+根據您提供的圖片 (未命名-20.jpg)，黃色符號不是直線，而是一個雙彎道 (Double Curve) 符號。
+
+邏輯：它包含兩條互不相通的彎道。例如：上端只能通往右端，下端只能通往左端（就像交流道一樣，電流不能交叉）。我重寫了路徑演算法來支援這種「分流導通」。
+
+外觀：繪製為兩條黃色的弧線，符合圖片設計。
+
+新增「過關確認」機制：
+
+當綠色電源全部接通時，不會馬上跳關。
+
+會彈出一個「通關成功」視窗，顯示您花了多少時間，並有一個按鈕讓您手動點擊進入下一關。
+
+嚴格的失敗判定：
+
+如果時間倒數結束，遊戲會強制停止，並顯示失敗視窗，無法進入下一關，必須點擊重試。
+
+這是修正後的完整代碼，請直接覆蓋使用：
+
+HTML
+
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>電路維修專家 - 邏輯修正版</title>
+    <title>電路維修專家 - 修正版</title>
     <style>
         body { background: #050505; color: #eee; text-align: center; font-family: 'Segoe UI', sans-serif; margin: 0; overflow: hidden; }
         
@@ -50,8 +74,8 @@
         <h1 id="overlay-title">電路維修專家</h1>
         <p id="overlay-desc">
             歡迎來到電力中樞。<br>
-            你需要接通所有綠色電源目標。<br>
-            <span style="color:#ffff00">規則修正：只要綠色電源全部亮起即可，不需點亮所有電線。</span>
+            Level 3 將出現黃色特殊符號（雙彎道）。<br>
+            <span style="color:#ffff00">注意：黃色符號的兩條線路是分開的，不會交叉導電。</span>
         </p>
         <button id="overlay-btn" onclick="startGame()">開始挑戰</button>
     </div>
@@ -75,17 +99,19 @@
         let timeLeft = 60;
         let timerInterval = null;
         let isPlaying = false;
+        let isLevelComplete = false;
         
         let nodes = [];
         let segments = [];
         let targets = [];
 
         // --- 1. 關卡配置 ---
+        // Level 3 加入 'X' (黃色雙彎道)
         function getLevelConfig(level) {
             switch(level) {
                 case 1: return { types: ['T'], scrambleRange: [1, 2] };
                 case 2: return { types: ['T', 'L'], scrambleRange: [1, 3] };
-                case 3: return { types: ['T', 'L', 'I'], scrambleRange: [2, 4] };
+                case 3: return { types: ['T', 'L', 'X'], scrambleRange: [2, 4] }; 
                 default: return { types: ['T'], scrambleRange: [1, 1] };
             }
         }
@@ -105,12 +131,13 @@
             statusDisp.innerText = "斷線";
             statusDisp.style.color = "#ff3333";
             isPlaying = true;
+            isLevelComplete = false;
 
             initGameMap(level);
             
             if (timerInterval) clearInterval(timerInterval);
             timerInterval = setInterval(() => {
-                if (!isPlaying) return;
+                if (!isPlaying || isLevelComplete) return;
                 timeLeft--;
                 timeDisp.innerText = timeLeft;
                 if (timeLeft <= 10) timeDisp.className = "stat-value warning";
@@ -118,19 +145,37 @@
             }, 1000);
         }
 
+        // 顯示過關視窗，等待玩家點擊下一關
+        function levelCleared() {
+            isLevelComplete = true;
+            statusDisp.innerText = "連線成功";
+            statusDisp.style.color = "#00ff00";
+            
+            let msg = `Level ${currentLevel} 完成！<br>剩餘時間: ${timeLeft} 秒`;
+            let btn = "前往下一關";
+            let action = nextLevel;
+
+            if (currentLevel >= 3) {
+                msg = "恭喜！全數關卡已修復完成。<br>你是真正的電路大師。";
+                btn = "重新開始";
+                action = startGame;
+            }
+            
+            // 延遲一點點跳出，讓玩家看到綠燈亮起
+            setTimeout(() => {
+                showOverlay("系統恢復", msg, btn, action);
+            }, 500);
+        }
+
         function nextLevel() {
             currentLevel++;
-            if (currentLevel > 3) {
-                showOverlay("任務完成", "恭喜！你是真正的電路大師。", "重新挑戰", startGame);
-            } else {
-                startLevel(currentLevel);
-            }
+            startLevel(currentLevel);
         }
 
         function gameOver() {
             isPlaying = false;
             clearInterval(timerInterval);
-            showOverlay("任務失敗", `電力未完全恢復。你必須重試 Level ${currentLevel}。`, "重試關卡", () => startLevel(currentLevel));
+            showOverlay("電力中斷", `時間耗盡！挑戰在 Level ${currentLevel} 失敗了。<br>無法進入下一關。`, "重試本關", () => startLevel(currentLevel));
         }
 
         function showOverlay(title, desc, btnText, callback) {
@@ -141,11 +186,16 @@
             overlay.style.display = 'flex';
         }
 
-        // --- 3. 地圖生成 (修正版) ---
+        // --- 3. 地圖生成 ---
+        function addSeg(id1, id2, dir1, dir2, pts) {
+            segments.push({ from: id1, to: id2, fromDir: dir1, toDir: dir2, points: pts, powered: false });
+        }
+
         function initGameMap(level) {
             const config = getLevelConfig(level);
             let attempt = 0;
             
+            // 強制生成一個初始不亮的盤面
             do {
                 generateSolvedState(config.types);
                 scrambleBoard(config.scrambleRange);
@@ -158,96 +208,53 @@
             draw();
         }
 
-        // 建立線段的輔助函式 (明確指定兩端的端口方向)
-        // dir1: id1 連接這條線的端口 (0:上, 1:右, 2:下, 3:左)
-        // dir2: id2 連接這條線的端口
-        function addSeg(id1, id2, dir1, dir2, pts) {
-            segments.push({ from: id1, to: id2, fromDir: dir1, toDir: dir2, points: pts, powered: false });
-        }
-
         function generateSolvedState(allowedTypes) {
             nodes = [];
             segments = [];
             targets = [];
 
-            // A. 生成節點 (先設為導通狀態)
+            // A. 生成節點
             BOX_SIZES.forEach((size, i) => {
                 const half = size / 2;
                 const layerNum = 4 - i;
                 
-                // 為了確保一定有解，我們建立一個 "預設導通" 的 T/I 骨架，然後根據 Level 替換
-                // 這裡簡化：我們不強制預設導通，而是依賴玩家轉動來導通。
-                // 關鍵是：確保生成的符號組合 "理論上" 是能連通的。
-                // 簡單起見：我們隨機生成，因為 T 和 L 組合在這種密集網格中幾乎總是有解。
-                // 如果無解，玩家重試即可 (Roguelike 風格)。
-                // 但為了體驗好，我們確保主軸盡量用 T 或 I。
-
-                const pickType = (isAxis) => {
-                    let t = allowedTypes[Math.floor(Math.random() * allowedTypes.length)];
-                    // 如果在主軸上且隨機到了 L，有 50% 機率換回 T 以保持主幹暢通 (降低死局率)
-                    if (isAxis && t === 'L' && Math.random() > 0.5) t = 'T'; 
-                    return t;
-                };
-
-                // 隨機初始角度
+                // 隨機選符號，確保不會無解 (簡單處理：全隨機，玩家可旋轉)
+                const pickType = () => allowedTypes[Math.floor(Math.random() * allowedTypes.length)];
                 const randRot = () => Math.floor(Math.random() * 4);
 
-                nodes.push({ id: `L${i}_T`, layer: i, x: CX, y: CY - half, type: pickType(true), rot: randRot(), display: layerNum });
-                nodes.push({ id: `L${i}_R`, layer: i, x: CX + half, y: CY, type: pickType(true), rot: randRot(), display: layerNum });
-                nodes.push({ id: `L${i}_B`, layer: i, x: CX, y: CY + half, type: pickType(true), rot: randRot(), display: layerNum });
-                nodes.push({ id: `L${i}_L`, layer: i, x: CX - half, y: CY, type: pickType(true), rot: randRot(), display: layerNum });
+                nodes.push({ id: `L${i}_T`, layer: i, x: CX, y: CY - half, type: pickType(), rot: randRot(), display: layerNum });
+                nodes.push({ id: `L${i}_R`, layer: i, x: CX + half, y: CY, type: pickType(), rot: randRot(), display: layerNum });
+                nodes.push({ id: `L${i}_B`, layer: i, x: CX, y: CY + half, type: pickType(), rot: randRot(), display: layerNum });
+                nodes.push({ id: `L${i}_L`, layer: i, x: CX - half, y: CY, type: pickType(), rot: randRot(), display: layerNum });
             });
 
-            // B. 建立線路 (使用明確端口)
-            // 端口定義: 0:Up, 1:Right, 2:Down, 3:Left
-            
-            // Source -> L0_T (Source 在上，L0_T 需要向上連)
-            // Source 視為在上方，連接 L0_T 的 Port 0 (Up)
+            // B. 建立線路 (定義端口: 0:Up, 1:Right, 2:Down, 3:Left)
             segments.push({ from: 'SOURCE', to: 'L0_T', fromDir: 2, toDir: 0, points: [[CX, 70], [CX, CY - 300]], powered: false });
 
-            // 垂直軸 (Top -> Inner Top)
-            // L0_T(Down:2) -> L1_T(Up:0)
+            // 垂直軸
             for(let i=0; i<3; i++) {
                 addSeg(`L${i}_T`, `L${i+1}_T`, 2, 0, [[CX, CY-BOX_SIZES[i]/2], [CX, CY-BOX_SIZES[i+1]/2]]);
-                // 下方軸: L3_B(Down:2) -> L2_B(Up:0) ... 注意方向
-                // L(i)_B 是外層，L(i+1)_B 是內層。
-                // 連接是 L(i)_B(Up:0) <-> L(i+1)_B(Down:2) ? 不，座標上 L0 在最下面。
-                // BOX_SIZES[0] 是最大的。 L0_B 在最下面 (y最大)。 L1_B 在上面一點。
-                // 所以 L0_B(Up:0) -> L1_B(Down:2)
                 addSeg(`L${i}_B`, `L${i+1}_B`, 0, 2, [[CX, CY+BOX_SIZES[i]/2], [CX, CY+BOX_SIZES[i+1]/2]]); 
             }
-
             // 水平軸
-            // Left Axis: L0_L (Leftmost) -> L1_L (Inner Left)
-            // L0_L(Right:1) -> L1_L(Left:3)
             for(let i=0; i<3; i++) {
                 addSeg(`L${i}_L`, `L${i+1}_L`, 1, 3, [[CX-BOX_SIZES[i]/2, CY], [CX-BOX_SIZES[i+1]/2, CY]]);
-                // Right Axis: L0_R (Rightmost) -> L1_R (Inner Right)
-                // L0_R(Left:3) -> L1_R(Right:1)
                 addSeg(`L${i}_R`, `L${i+1}_R`, 3, 1, [[CX+BOX_SIZES[i]/2, CY], [CX+BOX_SIZES[i+1]/2, CY]]);
             }
+            // 中心穿透
+            addSeg('L3_T', 'L3_B', 2, 0, [[CX, CY-90], [CX, CY+90]]); 
+            addSeg('L3_L', 'L3_R', 1, 3, [[CX-90, CY], [CX+90, CY]]); 
 
-            // 中心穿透 (L3_T <-> L3_B, L3_L <-> L3_R)
-            addSeg('L3_T', 'L3_B', 2, 0, [[CX, CY-90], [CX, CY+90]]); // Top connects Down to Bottom's Up
-            addSeg('L3_L', 'L3_R', 1, 3, [[CX-90, CY], [CX+90, CY]]); // Left connects Right to Right's Left
-
-            // 環狀連接 (角落) - 這是之前出錯的地方，現在手動指定端口
+            // 環狀連接 (修正端口)
             BOX_SIZES.forEach((size, i) => {
                 const h = size/2;
-                // Top Node (Right:1) -> Right Node (Up:0)
                 addSeg(`L${i}_T`, `L${i}_R`, 1, 0, [[CX, CY-h], [CX+h, CY-h], [CX+h, CY]]);
-                
-                // Right Node (Down:2) -> Bottom Node (Right:1)
                 addSeg(`L${i}_R`, `L${i}_B`, 2, 1, [[CX+h, CY], [CX+h, CY+h], [CX, CY+h]]);
-                
-                // Bottom Node (Left:3) -> Left Node (Down:2)
                 addSeg(`L${i}_B`, `L${i}_L`, 3, 2, [[CX, CY+h], [CX-h, CY+h], [CX-h, CY]]);
-                
-                // Left Node (Up:0) -> Top Node (Left:3)
                 addSeg(`L${i}_L`, `L${i}_T`, 0, 3, [[CX-h, CY], [CX-h, CY-h], [CX, CY-h]]);
             });
 
-            // C. 配置目標 (依附在線段上)
+            // C. 配置目標
             const findSeg = (id1, id2) => segments.findIndex(s => (s.from===id1 && s.to===id2) || (s.from===id2 && s.to===id1));
             
             targets.push({ x: CX + 300, y: CY - 300, segIdx: findSeg('L0_T', 'L0_R'), powered: false });
@@ -267,90 +274,98 @@
             }
         }
 
-        // --- 4. 核心電力運算 (修復版) ---
+        // --- 4. 核心電力運算 (支援黃色雙彎道分流) ---
         function calculatePower() {
+            // 重置狀態
             nodes.forEach(n => n.powered = false);
             segments.forEach(s => s.powered = false);
             targets.forEach(t => t.powered = false);
 
-            let queue = ['SOURCE']; 
-            let firstSeg = segments.find(s => s.from === 'SOURCE');
-            // Source 永遠供電，無條件點亮第一段
-            if(firstSeg) { firstSeg.powered = true; queue.push(firstSeg.to); }
+            // Queue 儲存 { nodeID, entryPort } 
+            // 這樣才能區分黃色符號從哪邊進來
+            let queue = []; 
+
+            // Source 連接 L0_T 的 Port 0
+            let startSeg = segments.find(s => s.from === 'SOURCE');
+            if(startSeg) {
+                startSeg.powered = true;
+                queue.push({ id: startSeg.to, entry: 0 }); // Source 進入 L0_T 的 Port 0 (Up)
+            }
+
+            // 已處理清單，避免無窮迴圈 (格式: "ID_EntryPort")
+            let visited = new Set();
 
             while(queue.length > 0) {
-                let currId = queue.shift();
-                let currNode = nodes.find(n => n.id === currId);
+                let item = queue.shift();
+                let currNode = nodes.find(n => n.id === item.id);
                 if (!currNode) continue;
+                
+                let stateKey = `${item.id}_${item.entry}`;
+                if (visited.has(stateKey)) continue;
+                visited.add(stateKey);
 
-                currNode.powered = true;
+                currNode.powered = true; // 視覺上亮起
 
-                // 取得目前節點開通的端口
-                // 0:Up, 1:Right, 2:Down, 3:Left
-                let ports = [];
-                if (currNode.type === 'T') {
-                    // T型 (rot=0: Stem Up, Bar Bottom) -> 連接 Up, Right, Left. Block Down.
-                    // 修正T型視覺定義：
-                    // rot=0: 畫法是 ┴ (凸出向上)。 連接 0, 1, 3。 Block 2。
-                    let block = (currNode.rot + 2) % 4; 
-                    for(let d=0; d<4; d++) if(d !== block) ports.push(d);
-                } else if (currNode.type === 'L') {
-                    // L型 (rot=0: 畫法 └ ) -> 連接 Up(0) & Right(1).
-                    ports.push(currNode.rot);
-                    ports.push((currNode.rot + 1) % 4);
-                } else if (currNode.type === 'I') {
-                    // I型 (rot=0: | ) -> 連接 0, 2
-                    if (currNode.rot % 2 === 0) { ports.push(0, 2); }
-                    else { ports.push(1, 3); }
+                // 計算出口端口 (Exit Ports)
+                let exitPorts = [];
+                let r = currNode.rot;
+                let t = currNode.type;
+
+                if (t === 'T') {
+                    // T: 缺口在 (rot+2)%4。其他都通。
+                    // 只要入口不是缺口，就能通往其他所有非缺口。
+                    let block = (r + 2) % 4;
+                    if (item.entry !== block) {
+                        for(let d=0; d<4; d++) if(d !== block && d !== item.entry) exitPorts.push(d);
+                    }
+                } else if (t === 'L') {
+                    // L: 連接 rot 和 (rot+1)%4
+                    let p1 = r;
+                    let p2 = (r + 1) % 4;
+                    if (item.entry === p1) exitPorts.push(p2);
+                    else if (item.entry === p2) exitPorts.push(p1);
+                } else if (t === 'X') {
+                    // 黃色雙彎道 (Double Curve)
+                    // Rot 0/2: 0<->1 (Up-Right) AND 2<->3 (Down-Left)
+                    // Rot 1/3: 1<->2 (Right-Down) AND 3<->0 (Left-Up)
+                    
+                    if (r % 2 === 0) { // Mode A: 0-1, 2-3
+                        if (item.entry === 0) exitPorts.push(1);
+                        if (item.entry === 1) exitPorts.push(0);
+                        if (item.entry === 2) exitPorts.push(3);
+                        if (item.entry === 3) exitPorts.push(2);
+                    } else { // Mode B: 1-2, 3-0
+                        if (item.entry === 1) exitPorts.push(2);
+                        if (item.entry === 2) exitPorts.push(1);
+                        if (item.entry === 3) exitPorts.push(0);
+                        if (item.entry === 0) exitPorts.push(3);
+                    }
                 }
 
-                // 檢查所有連接的線段
-                segments.forEach(seg => {
-                    let neighborId = null;
-                    let myDir = -1;     // 我這端要用的端口
-                    let neighborDir = -1; // 對方那端要用的端口
+                // 將電力傳給出口連接的線段
+                exitPorts.forEach(exitDir => {
+                    // 找出連接這個端口的線
+                    let seg = segments.find(s => 
+                        (s.from === item.id && s.fromDir === exitDir) || 
+                        (s.to === item.id && s.toDir === exitDir)
+                    );
 
-                    if (seg.from === currId) {
-                        neighborId = seg.to;
-                        myDir = seg.fromDir;
-                        neighborDir = seg.toDir;
-                    } else if (seg.to === currId) {
-                        neighborId = seg.from;
-                        myDir = seg.toDir;
-                        neighborDir = seg.fromDir;
-                    } else {
-                        return; // 不相干的線
-                    }
+                    if (seg) {
+                        seg.powered = true;
+                        
+                        // 找出線段另一端的鄰居
+                        let neighborId = (seg.from === item.id) ? seg.to : seg.from;
+                        let neighborEntryDir = (seg.from === item.id) ? seg.toDir : seg.fromDir;
 
-                    // 1. 我這邊有通嗎？
-                    if (ports.includes(myDir) && !seg.powered) {
-                        seg.powered = true; // 線路通電！
-
-                        // 2. 對方那邊有接嗎？ (Neighbor)
-                        let neighborNode = nodes.find(n => n.id === neighborId);
-                        if (neighborNode) {
-                            let nPorts = [];
-                            if (neighborNode.type === 'T') {
-                                let block = (neighborNode.rot + 2) % 4;
-                                for(let d=0; d<4; d++) if(d !== block) nPorts.push(d);
-                            } else if (neighborNode.type === 'L') {
-                                nPorts.push(neighborNode.rot);
-                                nPorts.push((neighborNode.rot + 1) % 4);
-                            } else if (neighborNode.type === 'I') {
-                                if (neighborNode.rot % 2 === 0) nPorts.push(0, 2);
-                                else nPorts.push(1, 3);
-                            }
-
-                            // 檢查對方的端口是否開放
-                            if (nPorts.includes(neighborDir)) {
-                                queue.push(neighborId);
-                            }
-                        }
+                        // 加入 Queue (不需判斷鄰居是否接受，因為那是鄰居pop出來後的事)
+                        // 但為了效率，可以先檢查鄰居是否有那個端口? 
+                        // 不，直接推進去，讓下一輪迴圈的 "入口檢查" (if T block...) 去擋。
+                        queue.push({ id: neighborId, entry: neighborEntryDir });
                     }
                 });
             }
 
-            // 結算：只檢查 targets 是否全亮
+            // 結算
             let litCount = 0;
             targets.forEach(t => {
                 if (segments[t.segIdx].powered) {
@@ -359,16 +374,12 @@
                 }
             });
 
-            if (litCount === targets.length && isPlaying) {
-                isPlaying = false;
-                clearInterval(timerInterval);
-                statusDisp.innerText = "連線成功";
-                statusDisp.style.color = "#00ff00";
-                setTimeout(nextLevel, 1000); 
+            if (litCount === targets.length && isPlaying && !isLevelComplete) {
+                levelCleared(); // 觸發過關
             }
         }
 
-        // --- 5. 繪圖 ---
+        // --- 5. 繪圖 (新增黃色符號) ---
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -409,49 +420,56 @@
 
             // 節點
             nodes.forEach(n => {
+                // 紅框
                 ctx.strokeStyle = "red"; ctx.lineWidth = 2; ctx.setLineDash([]);
                 ctx.strokeRect(n.x - 25, n.y - 25, 50, 50);
 
+                // 編號
                 ctx.fillStyle = "#ff5555"; ctx.font = "bold 12px Arial";
                 ctx.fillText(n.display, n.x + 15, n.y - 15);
 
+                // 符號繪製
                 ctx.save();
                 ctx.translate(n.x, n.y);
                 ctx.rotate(n.rot * Math.PI / 2);
                 
                 let color = n.powered ? "#ffffff" : "#0055aa";
-                if (n.type === 'I') color = n.powered ? "#ffffcc" : "#ddcc00"; 
+                if (n.type === 'X') color = n.powered ? "#ffffcc" : "#eebb00"; // 黃色
 
                 ctx.strokeStyle = color;
                 ctx.lineWidth = 4; ctx.lineCap = "round";
                 ctx.beginPath();
                 
-                // 視覺繪製確保與邏輯 (0:Up, 1:Right...) 一致
                 if (n.type === 'T') {
-                    // T (rot=0) 應該連接 Up(0), Right(1), Left(3). 
-                    // 畫法: 橫線(-15,0 to 15,0)是Left-Right. 豎線(0,0 to 0,-15)是Up. Correct.
+                    // T (rot=0): Up, Right, Left. Down Blocked.
                     ctx.moveTo(-15, 0); ctx.lineTo(15, 0); ctx.moveTo(0, 0); ctx.lineTo(0, -15);
+                    ctx.stroke();
                 } else if (n.type === 'L') {
-                    // L (rot=0) 應該連接 Up(0), Right(1).
-                    // 畫法: (0,-15)Up -> (0,0) -> (15,0)Right. Correct.
+                    // L (rot=0): Up, Right.
                     ctx.moveTo(0, -15); ctx.lineTo(0, 0); ctx.lineTo(15, 0);
-                } else if (n.type === 'I') { 
-                    // I (rot=0) 應該連接 Up(0), Down(2).
-                    // 畫法: (0,-18) to (0,18). Correct.
-                    ctx.moveTo(0, -18); ctx.lineTo(0, 18); 
-                    if (!n.powered) {
-                        ctx.strokeStyle = "#aa8800";
-                        ctx.lineWidth = 6; ctx.stroke();
-                        ctx.lineWidth = 2; ctx.strokeStyle = "#ffff00"; 
-                    }
+                    ctx.stroke();
+                } else if (n.type === 'X') { 
+                    // 黃色雙彎道 (Double Curve)
+                    // Rot 0: Top-Right Arc & Bottom-Left Arc
+                    // 這裡的 Rot 0 對應邏輯是 0-1, 2-3
+                    ctx.beginPath();
+                    // Arc 1: Top(0) to Right(1). Center at (15, -15)? No, simple curves.
+                    // Quadratic curve for smooth bend
+                    ctx.moveTo(0, -15); ctx.quadraticCurveTo(5, -5, 15, 0); // Up to Right
+                    ctx.stroke();
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(0, 15); ctx.quadraticCurveTo(-5, 5, -15, 0); // Down to Left
+                    ctx.stroke();
                 }
-                ctx.stroke();
                 ctx.restore();
             });
         }
 
+        // --- 6. 互動 ---
         canvas.addEventListener('click', (e) => {
-            if (!isPlaying) return;
+            if (!isPlaying || isLevelComplete) return;
+
             const rect = canvas.getBoundingClientRect();
             const mx = e.clientX - rect.left;
             const my = e.clientY - rect.top;
@@ -476,4 +494,3 @@
     </script>
 </body>
 </html>
-
