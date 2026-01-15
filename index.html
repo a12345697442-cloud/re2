@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>電路維修專家 - 最終修正版</title>
+    <title>電路維修專家 - 終極修正版</title>
     <style>
         body { background: #050505; color: #eee; text-align: center; font-family: 'Segoe UI', sans-serif; margin: 0; overflow: hidden; }
         
@@ -51,7 +51,7 @@
         <p id="overlay-desc">
             歡迎來到電力中樞。<br>
             <strong>Level 1 目標：點亮 3 個電源。</strong><br>
-            <span style="color:#ffff00">修正：黃色特殊符號已更新為有角度的雙L型。</span>
+            <span style="color:#ffff00">修正：黃色符號已更新為獨立雙通道（上連左，下連右）。</span>
         </p>
         <button id="overlay-btn" onclick="startGame()">開始挑戰</button>
     </div>
@@ -82,12 +82,12 @@
         let targets = [];
         let targetCount = 3; 
 
-        // --- 1. 關卡配置 ---
+        // --- 1. 關卡配置 (使用新代號 Y 代表黃色特殊符號) ---
         function getLevelConfig(level) {
             switch(level) {
                 case 1: return { types: ['T'], scrambleRange: [1, 2], targetCount: 3 };
                 case 2: return { types: ['T', 'L'], scrambleRange: [1, 3], targetCount: 4 };
-                case 3: return { types: ['T', 'L', 'X'], scrambleRange: [2, 4], targetCount: 6 }; 
+                case 3: return { types: ['T', 'L', 'Y'], scrambleRange: [2, 4], targetCount: 6 }; 
                 default: return { types: ['T'], scrambleRange: [1, 1], targetCount: 3 };
             }
         }
@@ -174,7 +174,7 @@
             let attempt = 0;
             
             do {
-                generateSolvedState(config.types, config.targetCount);
+                generateSolvedState(level, config.types, config.targetCount);
                 scrambleBoard(config.scrambleRange);
                 calculatePower(); 
                 attempt++;
@@ -182,12 +182,11 @@
                 if (!anyLit) break; 
             } while (attempt < 100);
 
-            // 關鍵修正：強制重置通關狀態，防止開局自動勝利
             isLevelComplete = false; 
             draw();
         }
 
-        function generateSolvedState(allowedTypes, numTargets) {
+        function generateSolvedState(level, allowedTypes, numTargets) {
             nodes = [];
             segments = [];
             targets = [];
@@ -232,20 +231,39 @@
                 addSeg(`L${i}_L`, `L${i}_T`, 0, 3, [[CX-h, CY], [CX-h, CY-h], [CX, CY-h]]);
             });
 
-            // C. 配置目標
+            // C. 配置目標 (策略性調整位置以製造叉路)
             const findSeg = (id1, id2) => segments.findIndex(s => (s.from===id1 && s.to===id2) || (s.from===id2 && s.to===id1));
-            
             const centerV_Idx = findSeg('L3_T', 'L3_B');
             const centerH_Idx = findSeg('L3_L', 'L3_R');
 
-            const pool = [
-                { x: CX, y: CY, segIndices: [centerV_Idx, centerH_Idx] },
-                { x: CX + 300, y: CY - 300, segIndices: [findSeg('L0_T', 'L0_R')] },
-                { x: CX - 300, y: CY + 300, segIndices: [findSeg('L0_B', 'L0_L')] },
-                { x: CX + 230, y: CY + 230, segIndices: [findSeg('L1_R', 'L1_B')] },
-                { x: CX - 160, y: CY - 160, segIndices: [findSeg('L2_L', 'L2_T')] },
-                { x: CX + 90, y: CY - 90, segIndices: [findSeg('L3_T', 'L3_R')] }
-            ];
+            let pool = [];
+
+            if (level === 1) {
+                // Level 1 (3個): 集中在右上方，迫使左下方線路閒置
+                pool = [
+                    { x: CX, y: CY, segIndices: [centerV_Idx, centerH_Idx] }, // 中心
+                    { x: CX + 230, y: CY - 230, segIndices: [findSeg('L1_T', 'L1_R')] }, // 內圈右上
+                    { x: CX + 300, y: CY - 300, segIndices: [findSeg('L0_T', 'L0_R')] }  // 外圈右上
+                ];
+            } else if (level === 2) {
+                // Level 2 (4個): 佔據中心與對角線，製造其他角落的叉路
+                pool = [
+                    { x: CX, y: CY, segIndices: [centerV_Idx, centerH_Idx] }, // 中心
+                    { x: CX - 300, y: CY - 300, segIndices: [findSeg('L0_L', 'L0_T')] }, // 外圈左上
+                    { x: CX + 300, y: CY + 300, segIndices: [findSeg('L0_R', 'L0_B')] }, // 外圈右下
+                    { x: CX + 90, y: CY - 90, segIndices: [findSeg('L3_T', 'L3_R')] }   // 最內圈右上
+                ];
+            } else {
+                // Level 3 (6個): 分散配置，但依靠複雜符號製造死路
+                pool = [
+                    { x: CX, y: CY, segIndices: [centerV_Idx, centerH_Idx] },
+                    { x: CX + 300, y: CY - 300, segIndices: [findSeg('L0_T', 'L0_R')] },
+                    { x: CX - 300, y: CY + 300, segIndices: [findSeg('L0_B', 'L0_L')] },
+                    { x: CX + 230, y: CY + 230, segIndices: [findSeg('L1_R', 'L1_B')] },
+                    { x: CX - 160, y: CY - 160, segIndices: [findSeg('L2_L', 'L2_T')] },
+                    { x: CX + 90, y: CY - 90, segIndices: [findSeg('L3_T', 'L3_R')] }
+                ];
+            }
 
             for(let i=0; i<numTargets; i++) {
                 targets.push({ ...pool[i], powered: false });
@@ -261,7 +279,7 @@
             }
         }
 
-        // --- 4. 電力運算 ---
+        // --- 4. 電力運算 (修正黃色符號邏輯) ---
         function calculatePower() {
             nodes.forEach(n => n.powered = false);
             segments.forEach(s => s.powered = false);
@@ -301,18 +319,16 @@
                     let p2 = (r + 1) % 4;
                     if (item.entry === p1) exitPorts.push(p2);
                     else if (item.entry === p2) exitPorts.push(p1);
-                } else if (t === 'X') {
-                    if (r % 2 === 0) { 
-                        if (item.entry === 0) exitPorts.push(1);
-                        if (item.entry === 1) exitPorts.push(0);
-                        if (item.entry === 2) exitPorts.push(3);
-                        if (item.entry === 3) exitPorts.push(2);
-                    } else { 
-                        if (item.entry === 1) exitPorts.push(2);
-                        if (item.entry === 2) exitPorts.push(1);
-                        if (item.entry === 3) exitPorts.push(0);
-                        if (item.entry === 0) exitPorts.push(3);
-                    }
+                } else if (t === 'Y') {
+                    // 黃色雙通道 (Double-L based on image_1.png)
+                    // 基礎狀態(rot 0/2): 上(0)連左(3)，下(2)連右(1)
+                    // 旋轉狀態(rot 1/3): 上(0)連右(1)，下(2)連左(3)
+                    let pairs = (r % 2 === 0) ? [[0, 3], [1, 2]] : [[0, 1], [3, 2]];
+                    
+                    pairs.forEach(pair => {
+                        if (item.entry === pair[0]) exitPorts.push(pair[1]);
+                        if (item.entry === pair[1]) exitPorts.push(pair[0]);
+                    });
                 }
 
                 exitPorts.forEach(exitDir => {
@@ -398,28 +414,29 @@
                 ctx.rotate(n.rot * Math.PI / 2);
                 
                 let color = n.powered ? "#ffffff" : "#0055aa";
-                if (n.type === 'X') color = n.powered ? "#ffffcc" : "#eebb00";
+                if (n.type === 'Y') color = n.powered ? "#ffffcc" : "#eebb00";
 
                 ctx.strokeStyle = color;
                 ctx.lineWidth = 4; ctx.lineCap = "round";
-                ctx.beginPath();
                 
                 if (n.type === 'T') {
+                    ctx.beginPath();
                     ctx.moveTo(-15, 0); ctx.lineTo(15, 0); 
                     ctx.moveTo(0, 0); ctx.lineTo(0, -15);
                     ctx.stroke();
                 } else if (n.type === 'L') {
-                    ctx.moveTo(0, -15); ctx.lineTo(0, 0); ctx.lineTo(15, 0);
-                    ctx.stroke();
-                } else if (n.type === 'X') { 
-                    // X (Double L-shape): 修正為有角度的折線
-                    // Path 1: Top to Right (0 to 1)
                     ctx.beginPath();
                     ctx.moveTo(0, -15); ctx.lineTo(0, 0); ctx.lineTo(15, 0);
                     ctx.stroke();
-                    // Path 2: Bottom to Left (2 to 3)
+                } else if (n.type === 'Y') { 
+                    // Y (Double L-shape): 繪製兩條獨立的折線
                     ctx.beginPath();
-                    ctx.moveTo(0, 15); ctx.lineTo(0, 0); ctx.lineTo(-15, 0);
+                    // 通道 1: 上到左
+                    ctx.moveTo(0, -15); ctx.lineTo(0, -5); ctx.lineTo(-5, 0); ctx.lineTo(-15, 0);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    // 通道 2: 下到右
+                    ctx.moveTo(0, 15); ctx.lineTo(0, 5); ctx.lineTo(5, 0); ctx.lineTo(15, 0);
                     ctx.stroke();
                 }
                 ctx.restore();
@@ -453,4 +470,3 @@
     </script>
 </body>
 </html>
-
