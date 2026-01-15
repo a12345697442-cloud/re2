@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>電路維修專家 - 完美修復版</title>
+    <title>電路維修專家 - 最終修正版</title>
     <style>
         body { background: #050505; color: #eee; text-align: center; font-family: 'Segoe UI', sans-serif; margin: 0; overflow: hidden; }
         
@@ -51,7 +51,7 @@
         <p id="overlay-desc">
             歡迎來到電力中樞。<br>
             <strong>Level 1 目標：點亮 3 個電源。</strong><br>
-            <span style="color:#ffff00">修正：中心電源現在可以接受垂直或水平供電。</span>
+            <span style="color:#ffff00">修正：黃色特殊符號已更新為有角度的雙L型。</span>
         </p>
         <button id="overlay-btn" onclick="startGame()">開始挑戰</button>
     </div>
@@ -182,6 +182,8 @@
                 if (!anyLit) break; 
             } while (attempt < 100);
 
+            // 關鍵修正：強制重置通關狀態，防止開局自動勝利
+            isLevelComplete = false; 
             draw();
         }
 
@@ -217,7 +219,7 @@
                 addSeg(`L${i}_L`, `L${i+1}_L`, 1, 3, [[CX-BOX_SIZES[i]/2, CY], [CX-BOX_SIZES[i+1]/2, CY]]);
                 addSeg(`L${i}_R`, `L${i+1}_R`, 3, 1, [[CX+BOX_SIZES[i]/2, CY], [CX+BOX_SIZES[i+1]/2, CY]]);
             }
-            // 中心穿透
+            // 中心
             addSeg('L3_T', 'L3_B', 2, 0, [[CX, CY-90], [CX, CY+90]]); 
             addSeg('L3_L', 'L3_R', 1, 3, [[CX-90, CY], [CX+90, CY]]); 
 
@@ -233,28 +235,18 @@
             // C. 配置目標
             const findSeg = (id1, id2) => segments.findIndex(s => (s.from===id1 && s.to===id2) || (s.from===id2 && s.to===id1));
             
-            // 重要：定義中心目標需要監聽的兩條線 (垂直 & 水平)
             const centerV_Idx = findSeg('L3_T', 'L3_B');
             const centerH_Idx = findSeg('L3_L', 'L3_R');
 
-            // 目標池 (格式: {x, y, segIndices: []})
-            // 注意：現在 targets 支援 segIndices 陣列，只要陣列中任意一條有電就算有電
             const pool = [
-                // 1. 中心 (最容易，垂直或水平有電都行)
                 { x: CX, y: CY, segIndices: [centerV_Idx, centerH_Idx] },
-                // 2. 外圈右上
                 { x: CX + 300, y: CY - 300, segIndices: [findSeg('L0_T', 'L0_R')] },
-                // 3. 外圈左下
                 { x: CX - 300, y: CY + 300, segIndices: [findSeg('L0_B', 'L0_L')] },
-                // 4. 二圈右下
                 { x: CX + 230, y: CY + 230, segIndices: [findSeg('L1_R', 'L1_B')] },
-                // 5. 三圈左上
                 { x: CX - 160, y: CY - 160, segIndices: [findSeg('L2_L', 'L2_T')] },
-                // 6. 內圈右上
                 { x: CX + 90, y: CY - 90, segIndices: [findSeg('L3_T', 'L3_R')] }
             ];
 
-            // 根據關卡挑選
             for(let i=0; i<numTargets; i++) {
                 targets.push({ ...pool[i], powered: false });
             }
@@ -300,19 +292,16 @@
                 let t = currNode.type;
 
                 if (t === 'T') {
-                    // T (rot=0): ┴ -> Ports 0,1,3. Blocked 2.
                     let block = (r + 2) % 4;
                     if (item.entry !== block) {
                         for(let d=0; d<4; d++) if(d !== block && d !== item.entry) exitPorts.push(d);
                     }
                 } else if (t === 'L') {
-                    // L (rot=0): └ -> Ports 0,1.
                     let p1 = r;
                     let p2 = (r + 1) % 4;
                     if (item.entry === p1) exitPorts.push(p2);
                     else if (item.entry === p2) exitPorts.push(p1);
                 } else if (t === 'X') {
-                    // X (Double): 0-1, 2-3
                     if (r % 2 === 0) { 
                         if (item.entry === 0) exitPorts.push(1);
                         if (item.entry === 1) exitPorts.push(0);
@@ -343,7 +332,6 @@
 
             let litCount = 0;
             targets.forEach(t => {
-                // 檢查該目標關聯的所有線段，只要有一條亮就是亮 (修正中心點無法點亮的問題)
                 let isLit = t.segIndices.some(idx => segments[idx].powered);
                 if (isLit) {
                     t.powered = true;
@@ -358,7 +346,7 @@
             }
         }
 
-        // --- 5. 繪圖 ---
+        // --- 5. 繪圖 (修正黃色符號外觀) ---
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -424,11 +412,14 @@
                     ctx.moveTo(0, -15); ctx.lineTo(0, 0); ctx.lineTo(15, 0);
                     ctx.stroke();
                 } else if (n.type === 'X') { 
+                    // X (Double L-shape): 修正為有角度的折線
+                    // Path 1: Top to Right (0 to 1)
                     ctx.beginPath();
-                    ctx.moveTo(0, -15); ctx.quadraticCurveTo(5, -5, 15, 0); 
+                    ctx.moveTo(0, -15); ctx.lineTo(0, 0); ctx.lineTo(15, 0);
                     ctx.stroke();
+                    // Path 2: Bottom to Left (2 to 3)
                     ctx.beginPath();
-                    ctx.moveTo(0, 15); ctx.quadraticCurveTo(-5, 5, -15, 0); 
+                    ctx.moveTo(0, 15); ctx.lineTo(0, 0); ctx.lineTo(-15, 0);
                     ctx.stroke();
                 }
                 ctx.restore();
@@ -462,3 +453,4 @@
     </script>
 </body>
 </html>
+
