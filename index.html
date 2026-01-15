@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>電路維修專家 - 完美邏輯版</title>
+    <title>電路維修專家 - 黃色符號修復版</title>
     <style>
         body { background: #050505; color: #eee; text-align: center; font-family: 'Segoe UI', sans-serif; margin: 0; overflow: hidden; }
         
@@ -51,7 +51,7 @@
         <p id="overlay-desc">
             歡迎來到電力中樞。<br>
             <strong>Level 1 目標：點亮 3 個電源。</strong><br>
-            <span style="color:#ffff00">系統已修正：保證所有關卡皆有解，且不會自動過關。</span>
+            <span style="color:#ffff00">修正：已強制 Level 3 必須包含黃色雙通道符號。</span>
         </p>
         <button id="overlay-btn" onclick="startGame()">開始挑戰</button>
     </div>
@@ -76,7 +76,7 @@
         let timerInterval = null;
         let isPlaying = false;
         let isLevelComplete = false;
-        let hasGameStarted = false; // 防止開局秒過
+        let hasGameStarted = false; 
         
         let nodes = [];
         let segments = [];
@@ -113,7 +113,7 @@
             
             isPlaying = true;
             isLevelComplete = false;
-            hasGameStarted = false; // 重置狀態
+            hasGameStarted = false; 
 
             initGameMap(level);
             
@@ -166,7 +166,7 @@
             overlay.style.display = 'flex';
         }
 
-        // --- 3. 地圖生成 (逆向破壞法) ---
+        // --- 3. 地圖生成 (強制包含機制) ---
         function addSeg(id1, id2, dir1, dir2, pts) {
             segments.push({ from: id1, to: id2, fromDir: dir1, toDir: dir2, points: pts, powered: false });
         }
@@ -175,21 +175,29 @@
             const config = getLevelConfig(level);
             let attempt = 0;
             
-            // 嘗試生成地圖，直到開局是全暗的 (避免秒過視覺)
-            // 實際上秒過邏輯已經被 hasGameStarted 擋住，但視覺上全暗比較合理
             do {
                 generateBeatableBoard(level, config.types, config.targetCount);
+                
+                // 強制檢查：如果是 Level 3，必須包含至少 2 個 Y 型
+                if (level === 3) {
+                    let yCount = nodes.filter(n => n.type === 'Y').length;
+                    if (yCount < 2) {
+                        attempt++;
+                        continue; // 重新生成
+                    }
+                }
+
                 scrambleBoard(config.scrambleRange);
                 
-                // 模擬計算，但不觸發過關
+                // 模擬計算
                 calculatePower(true); 
                 
                 attempt++;
                 let anyLit = targets.some(t => t.powered);
-                if (!anyLit) break; 
-            } while (attempt < 200);
+                if (!anyLit) break; // 成功生成全暗開局
+                
+            } while (attempt < 500); // 增加嘗試次數以確保能找到符合條件的盤面
 
-            // 重置狀態，確保遊戲真正開始
             isLevelComplete = false; 
             hasGameStarted = false;
             draw();
@@ -200,18 +208,17 @@
             segments = [];
             targets = [];
 
-            // 1. 建立基礎節點結構
+            // 1. 基礎節點
             BOX_SIZES.forEach((size, i) => {
                 const half = size / 2;
                 const layerNum = 4 - i;
-                // 預設全部用 T 型 (最強導通性)，rot=0 (隨便設，稍後會自動調整)
                 nodes.push({ id: `L${i}_T`, layer: i, x: CX, y: CY - half, type: 'T', rot: 0, display: layerNum });
                 nodes.push({ id: `L${i}_R`, layer: i, x: CX + half, y: CY, type: 'T', rot: 0, display: layerNum });
                 nodes.push({ id: `L${i}_B`, layer: i, x: CX, y: CY + half, type: 'T', rot: 0, display: layerNum });
                 nodes.push({ id: `L${i}_L`, layer: i, x: CX - half, y: CY, type: 'T', rot: 0, display: layerNum });
             });
 
-            // 2. 建立線路 (固定結構)
+            // 2. 建立線路
             segments.push({ from: 'SOURCE', to: 'L0_T', fromDir: 2, toDir: 0, points: [[CX, 70], [CX, CY - 300]], powered: false });
             for(let i=0; i<3; i++) {
                 addSeg(`L${i}_T`, `L${i+1}_T`, 2, 0, [[CX, CY-BOX_SIZES[i]/2], [CX, CY-BOX_SIZES[i+1]/2]]);
@@ -235,7 +242,6 @@
             const centerV_Idx = findSeg('L3_T', 'L3_B');
             const centerH_Idx = findSeg('L3_L', 'L3_R');
 
-            // 根據 Level 配置不同目標組合
             let pool = [];
             if (level === 1) {
                 pool = [
@@ -262,38 +268,26 @@
             }
             for(let i=0; i<numTargets; i++) targets.push({ ...pool[i], powered: false });
 
-            // 4. 【核心算法】逆向破壞：從全 T 開始，隨機嘗試替換符號
-            // 這保證了最終地圖一定是 "可解的"，因為我們是從可解狀態變過來的，且每次變更都經過驗證。
-            
-            // 先將所有節點設為 T 並轉到最佳角度 (這裡簡化：全設 T，T 很強，通常轉一轉就能通)
-            // 實際上 T 在任何位置幾乎都能導通。
-            
-            let mutations = 15; // 嘗試替換次數
+            // 4. 變異生成 (增加變異次數，並優先嘗試加入特殊符號)
+            let mutations = 60; // 增加次數
             for(let m=0; m<mutations; m++) {
-                // 隨機挑一個節點
                 let node = nodes[Math.floor(Math.random() * nodes.length)];
                 let originalType = node.type;
-                let originalRot = node.rot; // (雖然後面會 scramble，但我們要確保存在一組解)
+                let originalRot = node.rot;
                 
-                // 挑一個新類型 (L 或 Y)
                 let newType = allowedTypes[Math.floor(Math.random() * allowedTypes.length)];
                 if (newType === originalType) continue;
 
                 node.type = newType;
 
-                // 驗證：換了這個符號後，是否還存在一組解？
-                // 由於我們沒辦法寫全搜尋 Solver，我們採用 "樂觀驗證"：
-                // 如果換成 Y，我們隨機試 4 個角度，只要有一個角度能讓 calculatePower 點亮所有目標，就保留。
-                // 如果試遍了都不行，就改回來。
-                
+                // 樂觀驗證：嘗試4個角度，只要有一個能解，就保留
                 let validConfigFound = false;
                 for(let r=0; r<4; r++) {
                     node.rot = r;
-                    // 在模擬模式下計算 (不觸發 UI 變更)
                     let lit = simPower();
                     if (lit === numTargets) {
                         validConfigFound = true;
-                        break; // 找到一組解，保留這個 type (rot 稍後會被 scramble 掉，但我們知道解存在)
+                        break; 
                     }
                 }
 
@@ -304,13 +298,11 @@
             }
         }
 
-        // 模擬通電計算 (不影響畫面)
+        // 模擬通電
         function simPower() {
-            // 清除暫時狀態
             nodes.forEach(n => n.simPowered = false);
             segments.forEach(s => s.simPowered = false);
-            targets.forEach(t => t.simPowered = false);
-
+            
             let queue = [];
             let startSeg = segments.find(s => s.from === 'SOURCE');
             if(startSeg) {
@@ -361,9 +353,9 @@
                 if (entry === p1) exits.push(p2);
                 else if (entry === p2) exits.push(p1);
             } else if (type === 'Y') {
-                // Y (Double-Angle): Up(0)-Left(3) AND Down(2)-Right(1)
-                // Rot 0: Pairs (0,3), (2,1)
-                // Rot 1: Pairs (1,0), (3,2)
+                // Y (雙通道): Up(0)-Left(3) & Down(2)-Right(1)
+                // Rot 0/2: (0,3), (1,2)
+                // Rot 1/3: (0,1), (2,3)
                 let pairs = (rot % 2 === 0) ? [[0, 3], [1, 2]] : [[0, 1], [2, 3]];
                 pairs.forEach(pair => {
                     if (entry === pair[0]) exits.push(pair[1]);
@@ -382,7 +374,7 @@
             }
         }
 
-        // --- 4. 實際電力運算 (影響畫面) ---
+        // --- 4. 實際電力運算 ---
         function calculatePower(isSimulation = false) {
             nodes.forEach(n => n.powered = false);
             segments.forEach(s => s.powered = false);
@@ -430,13 +422,12 @@
             
             if (!isSimulation) targetDisp.innerText = `${litCount} / ${targetCount}`;
 
-            // 關鍵修正：必須遊戲已開始 (玩家點擊過) 才判斷過關
             if (!isSimulation && litCount === targetCount && isPlaying && !isLevelComplete && hasGameStarted) {
                 levelCleared();
             }
         }
 
-        // --- 5. 繪圖 (Y型修正) ---
+        // --- 5. 繪圖 ---
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -502,11 +493,13 @@
                     ctx.moveTo(0, -15); ctx.lineTo(0, 0); ctx.lineTo(15, 0);
                     ctx.stroke();
                 } else if (n.type === 'Y') { 
-                    // Y (雙折角): 上連左, 下連右
-                    // Path 1: Up(0) to Left(3) -> (0,-15) to (-15,0) via (-5,-5) break
-                    // Draw strict lines for angular look
+                    // Y (有角度的雙折線)
+                    ctx.beginPath();
+                    // 通道 1: 上(-y)連左(-x)
                     ctx.moveTo(0, -20); ctx.lineTo(0, -5); ctx.lineTo(-5, 0); ctx.lineTo(-20, 0);
-                    // Path 2: Down(2) to Right(1)
+                    ctx.stroke();
+                    ctx.beginPath();
+                    // 通道 2: 下(+y)連右(+x)
                     ctx.moveTo(0, 20); ctx.lineTo(0, 5); ctx.lineTo(5, 0); ctx.lineTo(20, 0);
                     ctx.stroke();
                 }
@@ -517,8 +510,7 @@
         canvas.addEventListener('click', (e) => {
             if (!isPlaying || isLevelComplete) return;
 
-            // 第一次點擊後才允許過關
-            hasGameStarted = true;
+            hasGameStarted = true; // 玩家介入後才允許勝利
 
             const rect = canvas.getBoundingClientRect();
             const mx = e.clientX - rect.left;
