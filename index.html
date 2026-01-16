@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>電路維修專家 - 難度步數鎖定版</title>
+    <title>電路維修專家 - 完美設計版</title>
     <style>
         body { background: #050505; color: #eee; text-align: center; font-family: 'Segoe UI', sans-serif; margin: 0; overflow: hidden; }
         
@@ -51,7 +51,7 @@
         <p id="overlay-desc">
             歡迎來到電力中樞。<br>
             <strong>Level 1 目標：點亮 3 個電源。</strong><br>
-            <span style="color:#ffff00">提示：系統已鎖定難度，請冷靜觀察線路流向。</span>
+            <span style="color:#ffff00">規則：每關都有固定解法，通關時會有未通電的虛線。</span>
         </p>
         <button id="overlay-btn" onclick="startGame()">開始挑戰</button>
     </div>
@@ -76,58 +76,74 @@
         let timerInterval = null;
         let isPlaying = false;
         let isLevelComplete = false;
-        let hasPlayerMoved = false; 
         
         let nodes = [];
         let segments = [];
         let targets = [];
         let targetCount = 3; 
 
-        // --- 1. 精心設計的固定關卡 (Hard-Coded Levels) ---
-        /*
-           配置說明：
-           - types: 該層 4 個節點的類型 [Top, Right, Bottom, Left]
-           - solvedRot: 該層通關時的正確角度 [Top, Right, Bottom, Left]
-           - offset: 玩家開局時需要點擊的次數 (0~3)。
-             例如 offset=3，代表初始角度是 (solvedRot - 3)，玩家必須點 3 次才能回到 solvedRot。
-        */
-        const LEVEL_CONFIGS = {
+        // --- 1. 精心設計的固定關卡數據 ---
+        // types: 每層的符號 [Top, Right, Bottom, Left]
+        // solutions: 每個符號的正確角度 [Top, Right, Bottom, Left]
+        // startOffsets: 每一層初始偏離正確角度的次數 (逆時針計算)
+        // 例如 startOffsets: [1, 0, 0, 0] 表示 Layer 0 需要點擊 3 次 (順時針) 才能回到正確位置
+        // 修正：點擊是順時針旋轉。如果 offset=1 (偏離90度)，玩家需要點 3 次 (270度) 才能轉一圈回到原點?
+        // 不，定義簡單點：startOffset = X，代表初始角度 = (Solution + X) % 4。
+        // 玩家點擊一次 +1。
+        // 要復原，玩家需要點擊 (4 - X) 次。
+        // 所以：
+        // 想要玩家點 3 次 -> Offset 設為 1 (初始=Sol+1, 點3次变成 Sol+4=Sol)
+        // 想要玩家點 1 次 -> Offset 設為 3
+        // 想要玩家點 2 次 -> Offset 設為 2
+        
+        const LEVELS = {
             1: {
                 targetCount: 3,
                 time: 60,
-                // L1: 總步數 3 (1+1+1+0)
-                // 設計：利用 T 型的死角製造斷路，看似簡單但需要轉對方向
-                layers: [
-                    { types: ['T','T','T','T'], solvedRot: [0,1,2,3], offset: 1 }, // Layer 0 (外)
-                    { types: ['T','T','T','T'], solvedRot: [2,3,0,1], offset: 1 }, // Layer 1
-                    { types: ['T','T','T','T'], solvedRot: [0,1,2,3], offset: 1 }, // Layer 2
-                    { types: ['T','T','T','T'], solvedRot: [2,3,0,1], offset: 0 }  // Layer 3 (內) - 這層不用動
-                ]
+                // L1: 總共需點擊 3 次 (Layer0: 3次)
+                // 設計：利用 T 型連通中心，但保留側邊虛線
+                structure: [
+                    { types: ['T','T','T','T'], sol: [2, 1, 0, 3] }, // L0
+                    { types: ['T','T','T','T'], sol: [2, 1, 0, 3] }, // L1
+                    { types: ['T','T','T','T'], sol: [0, 0, 0, 0] }, // L2
+                    { types: ['T','T','T','T'], sol: [0, 0, 0, 0] }  // L3
+                ],
+                // Layer 0 Offset 1 -> 需要點 3 次
+                // 其他 Offset 0 -> 需要點 0 次
+                startOffsets: [1, 0, 0, 0] 
             },
             2: {
                 targetCount: 4,
                 time: 60,
-                // L2: 總步數 5 (2+1+1+1)
-                // 設計：加入 L 型製造死路 (虛線)
-                layers: [
-                    { types: ['L','T','L','T'], solvedRot: [0,1,2,3], offset: 2 }, // Layer 0
-                    { types: ['T','L','T','L'], solvedRot: [2,1,0,3], offset: 1 }, // Layer 1
-                    { types: ['T','T','T','T'], solvedRot: [0,1,2,3], offset: 1 }, // Layer 2
-                    { types: ['L','L','L','L'], solvedRot: [1,2,3,0], offset: 1 }  // Layer 3
-                ]
+                // L2: 總共需點擊 5 次 (L0:2次, L1:3次)
+                // 設計：L型迷宮
+                structure: [
+                    { types: ['L','L','L','L'], sol: [3, 0, 1, 2] }, // L0
+                    { types: ['T','T','T','T'], sol: [2, 3, 0, 1] }, // L1
+                    { types: ['L','T','L','T'], sol: [0, 1, 2, 3] }, // L2
+                    { types: ['T','T','T','T'], sol: [0, 0, 0, 0] }  // L3
+                ],
+                // L0 Offset 2 -> 點 2 次
+                // L1 Offset 1 -> 點 3 次
+                startOffsets: [2, 1, 0, 0]
             },
             3: {
                 targetCount: 6,
                 time: 90,
-                // L3: 總步數 10 (3+3+2+2)
-                // 設計：黃色 Y 型登場。大量 L 型製造複雜度。
-                // 保證通關時有虛線：有些 T 型會指向空處。
-                layers: [
-                    { types: ['Y','T','L','T'], solvedRot: [0,1,2,3], offset: 3 }, // Layer 0: 需轉3次
-                    { types: ['T','Y','T','L'], solvedRot: [2,0,0,1], offset: 3 }, // Layer 1: 需轉3次
-                    { types: ['L','T','Y','T'], solvedRot: [0,1,0,3], offset: 2 }, // Layer 2: 需轉2次
-                    { types: ['T','L','T','Y'], solvedRot: [2,1,2,0], offset: 2 }  // Layer 3: 需轉2次
-                ]
+                // L3: 總共需點擊 10 次 (L0:3, L1:2, L2:2, L3:3)
+                // 設計：黃色Y型陷阱，必須轉對方向才能分流
+                structure: [
+                    { types: ['T','T','T','T'], sol: [2, 1, 0, 3] }, // L0
+                    { types: ['Y','Y','Y','Y'], sol: [0, 1, 0, 1] }, // L1 (Y型關鍵層)
+                    { types: ['T','L','T','L'], sol: [2, 0, 0, 2] }, // L2
+                    { types: ['Y','T','Y','T'], sol: [1, 0, 1, 0] }  // L3
+                ],
+                // L0 Offset 1 -> 點 3 次
+                // L1 Offset 2 -> 點 2 次
+                // L2 Offset 2 -> 點 2 次
+                // L3 Offset 1 -> 點 3 次
+                // Total = 10
+                startOffsets: [1, 2, 2, 1]
             }
         };
 
@@ -138,12 +154,12 @@
         }
 
         function startLevel(level) {
-            const config = LEVEL_CONFIGS[level];
-            targetCount = config.targetCount;
+            const data = LEVELS[level];
+            targetCount = data.targetCount;
 
             overlay.style.display = 'none';
             levelDisp.innerText = `${level} / 3`;
-            timeLeft = config.time;
+            timeLeft = data.time;
             timeDisp.innerText = timeLeft;
             timeDisp.className = "stat-value";
             targetDisp.innerText = `0 / ${targetCount}`;
@@ -151,12 +167,11 @@
             
             isPlaying = true;
             isLevelComplete = false;
-            hasPlayerMoved = false;
 
-            // 載入固定關卡
-            loadFixedLevel(level);
+            // 初始化固定地圖
+            initFixedLevel(level);
             
-            // 初始繪製 (全暗狀態)
+            // 初始計算 (這時一定不通，因為我們有 Start Offsets)
             calculatePower();
             draw();
             
@@ -209,41 +224,56 @@
             overlay.style.display = 'flex';
         }
 
-        // --- 3. 地圖生成 (載入固定數據) ---
+        // --- 3. 地圖生成 (固定邏輯) ---
         function addSeg(id1, id2, dir1, dir2, pts) {
             segments.push({ from: id1, to: id2, fromDir: dir1, toDir: dir2, points: pts, powered: false });
         }
 
-        function loadFixedLevel(level) {
-            const data = LEVEL_CONFIGS[level];
+        function initFixedLevel(level) {
+            const data = LEVELS[level];
             nodes = [];
             segments = [];
             targets = [];
 
-            // A. 生成節點
+            // A. 生成節點 (應用固定數據 + 偏移量)
             BOX_SIZES.forEach((size, i) => {
                 const half = size / 2;
                 const layerNum = 4 - i;
-                const layerData = data.layers[i];
-                
-                // 這裡計算初始角度：正確角度 - 難度偏移量 (反向推算)
-                // 例如：正確是 0，偏移 3 (需點3次)，則初始 = (0 - 3 + 4) % 4 = 1
-                // 這樣玩家點 3 次 (1->2->3->0) 才會回到正確位置
-                const calcInitRot = (solved, offset) => (solved - offset + 4) % 4;
+                const layerConfig = data.structure[i];
+                const offset = data.startOffsets[i];
 
-                // Top
-                nodes.push({ id: `L${i}_T`, layer: i, x: CX, y: CY - half, type: layerData.types[0], rot: calcInitRot(layerData.solvedRot[0], layerData.offset), display: layerNum });
-                // Right
-                nodes.push({ id: `L${i}_R`, layer: i, x: CX + half, y: CY, type: layerData.types[1], rot: calcInitRot(layerData.solvedRot[1], layerData.offset), display: layerNum });
-                // Bottom
-                nodes.push({ id: `L${i}_B`, layer: i, x: CX, y: CY + half, type: layerData.types[2], rot: calcInitRot(layerData.solvedRot[2], layerData.offset), display: layerNum });
-                // Left
-                nodes.push({ id: `L${i}_L`, layer: i, x: CX - half, y: CY, type: layerData.types[3], rot: calcInitRot(layerData.solvedRot[3], layerData.offset), display: layerNum });
+                // 生成4個方位的節點
+                // Top (idx 0), Right (idx 1), Bottom (idx 2), Left (idx 3)
+                const positions = [
+                    { x: CX, y: CY - half },      // Top
+                    { x: CX + half, y: CY },      // Right
+                    { x: CX, y: CY + half },      // Bottom
+                    { x: CX - half, y: CY }       // Left
+                ];
+
+                for (let j = 0; j < 4; j++) {
+                    let type = layerConfig.types[j];
+                    let solRot = layerConfig.sol[j];
+                    // 初始角度 = (正確答案 + 偏移量) % 4
+                    let initRot = (solRot + offset) % 4;
+                    
+                    let idSuffix = ['T', 'R', 'B', 'L'][j];
+                    nodes.push({ 
+                        id: `L${i}_${idSuffix}`, 
+                        layer: i, 
+                        x: positions[j].x, 
+                        y: positions[j].y, 
+                        type: type, 
+                        rot: initRot, 
+                        display: layerNum 
+                    });
+                }
             });
 
             // B. 建立線路 (固定拓樸)
             segments.push({ from: 'SOURCE', to: 'L0_T', fromDir: 2, toDir: 0, points: [[CX, 70], [CX, CY - 300]], powered: false });
-            // 垂直與水平軸
+            
+            // 軸線
             for(let i=0; i<3; i++) {
                 addSeg(`L${i}_T`, `L${i+1}_T`, 2, 0, [[CX, CY-BOX_SIZES[i]/2], [CX, CY-BOX_SIZES[i+1]/2]]);
                 addSeg(`L${i}_B`, `L${i+1}_B`, 0, 2, [[CX, CY+BOX_SIZES[i]/2], [CX, CY+BOX_SIZES[i+1]/2]]); 
@@ -269,20 +299,24 @@
             const centerH = findSeg('L3_L', 'L3_R');
 
             let pool = [];
+            // 固定目標配置，確保有虛線殘留
             if (level === 1) {
+                // L1: 3 Targets (留3個空位)
                 pool = [
                     { x: CX, y: CY, segIndices: [centerV, centerH] },
                     { x: CX + 300, y: CY - 300, segIndices: [findSeg('L0_T', 'L0_R')] },
                     { x: CX - 300, y: CY + 300, segIndices: [findSeg('L0_B', 'L0_L')] }
                 ];
             } else if (level === 2) {
+                // L2: 4 Targets
                 pool = [
                     { x: CX, y: CY, segIndices: [centerV, centerH] },
                     { x: CX - 300, y: CY - 300, segIndices: [findSeg('L0_L', 'L0_T')] },
-                    { x: CX + 300, y: CY + 300, segIndices: [findSeg('L0_R', 'L0_B')] },
+                    { x: CX + 230, y: CY + 230, segIndices: [findSeg('L1_R', 'L1_B')] },
                     { x: CX + 90, y: CY - 90, segIndices: [findSeg('L3_T', 'L3_R')] }
                 ];
             } else {
+                // L3: 6 Targets
                 pool = [
                     { x: CX, y: CY, segIndices: [centerV, centerH] },
                     { x: CX + 300, y: CY - 300, segIndices: [findSeg('L0_T', 'L0_R')] },
@@ -343,29 +377,26 @@
             
             targetDisp.innerText = `${litCount} / ${targetCount}`;
 
-            // 必須玩家動過才算
-            if (hasPlayerMoved && litCount === targetCount && isPlaying && !isLevelComplete) {
+            if (litCount === targetCount && isPlaying && !isLevelComplete) {
                 levelCleared();
             }
         }
 
         function getExitPorts(type, rot, entry) {
             let exits = [];
-            // T, L, Y 端口邏輯
             if (type === 'T') {
-                // T: Connects 3 ways. Blocks (rot+2)%4.
                 let block = (rot + 2) % 4;
                 if (entry !== block) {
                     for(let d=0; d<4; d++) if(d !== block && d !== entry) exits.push(d);
                 }
             } else if (type === 'L') {
-                // L: Connects rot & (rot+1)
-                let p1 = rot;
-                let p2 = (rot + 1) % 4;
+                let p1 = rot, p2 = (rot + 1) % 4;
                 if (entry === p1) exits.push(p2);
                 else if (entry === p2) exits.push(p1);
             } else if (type === 'Y') {
-                // Y: Double L
+                // Y (Double L): Up(0)-Left(3) & Down(2)-Right(1)
+                // Rot 0/2: Pairs (0,3), (1,2)
+                // Rot 1/3: Pairs (0,1), (2,3)
                 let pairs = (rot % 2 === 0) ? [[0, 3], [1, 2]] : [[0, 1], [2, 3]];
                 pairs.forEach(pair => {
                     if (entry === pair[0]) exits.push(pair[1]);
@@ -442,7 +473,6 @@
                     ctx.moveTo(0, -15); ctx.lineTo(0, 0); ctx.lineTo(15, 0);
                     ctx.stroke();
                 } else if (n.type === 'Y') { 
-                    // Y: 雙折線
                     ctx.beginPath();
                     ctx.moveTo(0, -20); ctx.lineTo(0, -5); ctx.lineTo(-5, 0); ctx.lineTo(-20, 0);
                     ctx.stroke();
@@ -456,8 +486,6 @@
 
         canvas.addEventListener('click', (e) => {
             if (!isPlaying || isLevelComplete) return;
-
-            hasPlayerMoved = true;
 
             const rect = canvas.getBoundingClientRect();
             const mx = e.clientX - rect.left;
@@ -483,4 +511,3 @@
     </script>
 </body>
 </html>
-
