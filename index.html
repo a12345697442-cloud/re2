@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>電路維修專家 - 完美設計版</title>
+    <title>電路維修專家 - 智能演算版</title>
     <style>
         body { background: #050505; color: #eee; text-align: center; font-family: 'Segoe UI', sans-serif; margin: 0; overflow: hidden; }
         
@@ -51,7 +51,7 @@
         <p id="overlay-desc">
             歡迎來到電力中樞。<br>
             <strong>Level 1 目標：點亮 3 個電源。</strong><br>
-            <span style="color:#ffff00">規則：每關都有固定解法，通關時會有未通電的虛線。</span>
+            <span style="color:#ffff00">系統：AI 運算完畢。開局無連線，保證有解且燒腦。</span>
         </p>
         <button id="overlay-btn" onclick="startGame()">開始挑戰</button>
     </div>
@@ -76,76 +76,25 @@
         let timerInterval = null;
         let isPlaying = false;
         let isLevelComplete = false;
+        let hasPlayerMoved = false; 
         
         let nodes = [];
         let segments = [];
         let targets = [];
         let targetCount = 3; 
 
-        // --- 1. 精心設計的固定關卡數據 ---
-        // types: 每層的符號 [Top, Right, Bottom, Left]
-        // solutions: 每個符號的正確角度 [Top, Right, Bottom, Left]
-        // startOffsets: 每一層初始偏離正確角度的次數 (逆時針計算)
-        // 例如 startOffsets: [1, 0, 0, 0] 表示 Layer 0 需要點擊 3 次 (順時針) 才能回到正確位置
-        // 修正：點擊是順時針旋轉。如果 offset=1 (偏離90度)，玩家需要點 3 次 (270度) 才能轉一圈回到原點?
-        // 不，定義簡單點：startOffset = X，代表初始角度 = (Solution + X) % 4。
-        // 玩家點擊一次 +1。
-        // 要復原，玩家需要點擊 (4 - X) 次。
-        // 所以：
-        // 想要玩家點 3 次 -> Offset 設為 1 (初始=Sol+1, 點3次变成 Sol+4=Sol)
-        // 想要玩家點 1 次 -> Offset 設為 3
-        // 想要玩家點 2 次 -> Offset 設為 2
-        
-        const LEVELS = {
-            1: {
-                targetCount: 3,
-                time: 60,
-                // L1: 總共需點擊 3 次 (Layer0: 3次)
-                // 設計：利用 T 型連通中心，但保留側邊虛線
-                structure: [
-                    { types: ['T','T','T','T'], sol: [2, 1, 0, 3] }, // L0
-                    { types: ['T','T','T','T'], sol: [2, 1, 0, 3] }, // L1
-                    { types: ['T','T','T','T'], sol: [0, 0, 0, 0] }, // L2
-                    { types: ['T','T','T','T'], sol: [0, 0, 0, 0] }  // L3
-                ],
-                // Layer 0 Offset 1 -> 需要點 3 次
-                // 其他 Offset 0 -> 需要點 0 次
-                startOffsets: [1, 0, 0, 0] 
-            },
-            2: {
-                targetCount: 4,
-                time: 60,
-                // L2: 總共需點擊 5 次 (L0:2次, L1:3次)
-                // 設計：L型迷宮
-                structure: [
-                    { types: ['L','L','L','L'], sol: [3, 0, 1, 2] }, // L0
-                    { types: ['T','T','T','T'], sol: [2, 3, 0, 1] }, // L1
-                    { types: ['L','T','L','T'], sol: [0, 1, 2, 3] }, // L2
-                    { types: ['T','T','T','T'], sol: [0, 0, 0, 0] }  // L3
-                ],
-                // L0 Offset 2 -> 點 2 次
-                // L1 Offset 1 -> 點 3 次
-                startOffsets: [2, 1, 0, 0]
-            },
-            3: {
-                targetCount: 6,
-                time: 90,
-                // L3: 總共需點擊 10 次 (L0:3, L1:2, L2:2, L3:3)
-                // 設計：黃色Y型陷阱，必須轉對方向才能分流
-                structure: [
-                    { types: ['T','T','T','T'], sol: [2, 1, 0, 3] }, // L0
-                    { types: ['Y','Y','Y','Y'], sol: [0, 1, 0, 1] }, // L1 (Y型關鍵層)
-                    { types: ['T','L','T','L'], sol: [2, 0, 0, 2] }, // L2
-                    { types: ['Y','T','Y','T'], sol: [1, 0, 1, 0] }  // L3
-                ],
-                // L0 Offset 1 -> 點 3 次
-                // L1 Offset 2 -> 點 2 次
-                // L2 Offset 2 -> 點 2 次
-                // L3 Offset 1 -> 點 3 次
-                // Total = 10
-                startOffsets: [1, 2, 2, 1]
+        // --- 1. 關卡難度設定 ---
+        function getLevelConfig(level) {
+            switch(level) {
+                // Level 1: 3目標, T型, 至少3步
+                case 1: return { types: ['T'], targetCount: 3, minMoves: 3, time: 60 };
+                // Level 2: 4目標, T+L型, 至少5步
+                case 2: return { types: ['T', 'L'], targetCount: 4, minMoves: 5, time: 90 };
+                // Level 3: 6目標, T+L+Y型, 至少10步
+                case 3: return { types: ['T', 'L', 'Y'], targetCount: 6, minMoves: 10, time: 120 }; 
+                default: return { types: ['T'], targetCount: 3, minMoves: 3, time: 60 };
             }
-        };
+        }
 
         // --- 2. 遊戲控制 ---
         function startGame() {
@@ -154,12 +103,12 @@
         }
 
         function startLevel(level) {
-            const data = LEVELS[level];
-            targetCount = data.targetCount;
+            const config = getLevelConfig(level);
+            targetCount = config.targetCount;
 
             overlay.style.display = 'none';
             levelDisp.innerText = `${level} / 3`;
-            timeLeft = data.time;
+            timeLeft = config.time;
             timeDisp.innerText = timeLeft;
             timeDisp.className = "stat-value";
             targetDisp.innerText = `0 / ${targetCount}`;
@@ -167,12 +116,11 @@
             
             isPlaying = true;
             isLevelComplete = false;
+            hasPlayerMoved = false;
 
-            // 初始化固定地圖
-            initFixedLevel(level);
+            // 核心：生成並驗證地圖
+            generateVerifiedLevel(level, config);
             
-            // 初始計算 (這時一定不通，因為我們有 Start Offsets)
-            calculatePower();
             draw();
             
             if (timerInterval) clearInterval(timerInterval);
@@ -224,99 +172,129 @@
             overlay.style.display = 'flex';
         }
 
-        // --- 3. 地圖生成 (固定邏輯) ---
-        function addSeg(id1, id2, dir1, dir2, pts) {
-            segments.push({ from: id1, to: id2, fromDir: dir1, toDir: dir2, points: pts, powered: false });
+        // --- 3. 智能地圖生成器 (Generator & Solver) ---
+        
+        function generateVerifiedLevel(level, config) {
+            let success = false;
+            let attempts = 0;
+
+            // 無限迴圈直到生成合格地圖 (通常 10 次內會成功)
+            while (!success && attempts < 2000) {
+                attempts++;
+                
+                // 3.1 建立結構
+                initNodes(level, config.types);
+                initSegments();
+                initTargets(level, config.targetCount);
+
+                // 3.2 暴力搜尋解答 (The Solver)
+                // 回傳: { solved: boolean, solutionState: number, litSegments: number }
+                let solution = findSolution(config.targetCount);
+
+                if (solution.solved) {
+                    // 3.3 檢查虛線條件 (總線段 - 亮線段 >= 2)
+                    let totalSegs = segments.length;
+                    if (totalSegs - solution.litSegments >= 2) {
+                        
+                        // 3.4 嘗試尋找一個 "開局全暗" 且 "難度夠高" 的初始狀態
+                        if (scrambleBoard(solution.solutionState, config.minMoves)) {
+                            success = true; // 完美！找到所有條件都符合的地圖
+                        }
+                    }
+                }
+            }
+            
+            if (!success) console.error("Map Generation Failed");
+            
+            // 執行一次計算以確保畫面正確
+            calculatePower();
         }
 
-        function initFixedLevel(level) {
-            const data = LEVELS[level];
+        function initNodes(level, allowedTypes) {
             nodes = [];
-            segments = [];
-            targets = [];
-
-            // A. 生成節點 (應用固定數據 + 偏移量)
             BOX_SIZES.forEach((size, i) => {
                 const half = size / 2;
                 const layerNum = 4 - i;
-                const layerConfig = data.structure[i];
-                const offset = data.startOffsets[i];
+                
+                // 隨機分配類型
+                const pick = () => allowedTypes[Math.floor(Math.random() * allowedTypes.length)];
+                
+                // 特殊規則：最上面的入口節點 (L0_T) 禁止使用 Y 型
+                // 原因：Y 型無論怎麼轉都會接通 Source，違反 "開局無連線" 規則
+                let tTop = pick();
+                if (i === 0 && tTop === 'Y') tTop = 'L'; // 強制換掉
 
-                // 生成4個方位的節點
-                // Top (idx 0), Right (idx 1), Bottom (idx 2), Left (idx 3)
-                const positions = [
-                    { x: CX, y: CY - half },      // Top
-                    { x: CX + half, y: CY },      // Right
-                    { x: CX, y: CY + half },      // Bottom
-                    { x: CX - half, y: CY }       // Left
-                ];
-
-                for (let j = 0; j < 4; j++) {
-                    let type = layerConfig.types[j];
-                    let solRot = layerConfig.sol[j];
-                    // 初始角度 = (正確答案 + 偏移量) % 4
-                    let initRot = (solRot + offset) % 4;
-                    
-                    let idSuffix = ['T', 'R', 'B', 'L'][j];
-                    nodes.push({ 
-                        id: `L${i}_${idSuffix}`, 
-                        layer: i, 
-                        x: positions[j].x, 
-                        y: positions[j].y, 
-                        type: type, 
-                        rot: initRot, 
-                        display: layerNum 
-                    });
-                }
+                nodes.push({ id: `L${i}_T`, layer: i, x: CX, y: CY - half, type: tTop, rot: 0, display: layerNum });
+                nodes.push({ id: `L${i}_R`, layer: i, x: CX + half, y: CY, type: pick(), rot: 0, display: layerNum });
+                nodes.push({ id: `L${i}_B`, layer: i, x: CX, y: CY + half, type: pick(), rot: 0, display: layerNum });
+                nodes.push({ id: `L${i}_L`, layer: i, x: CX - half, y: CY, type: pick(), rot: 0, display: layerNum });
             });
 
-            // B. 建立線路 (固定拓樸)
-            segments.push({ from: 'SOURCE', to: 'L0_T', fromDir: 2, toDir: 0, points: [[CX, 70], [CX, CY - 300]], powered: false });
-            
-            // 軸線
-            for(let i=0; i<3; i++) {
-                addSeg(`L${i}_T`, `L${i+1}_T`, 2, 0, [[CX, CY-BOX_SIZES[i]/2], [CX, CY-BOX_SIZES[i+1]/2]]);
-                addSeg(`L${i}_B`, `L${i+1}_B`, 0, 2, [[CX, CY+BOX_SIZES[i]/2], [CX, CY+BOX_SIZES[i+1]/2]]); 
-                addSeg(`L${i}_L`, `L${i+1}_L`, 1, 3, [[CX-BOX_SIZES[i]/2, CY], [CX-BOX_SIZES[i+1]/2, CY]]);
-                addSeg(`L${i}_R`, `L${i+1}_R`, 3, 1, [[CX+BOX_SIZES[i]/2, CY], [CX+BOX_SIZES[i+1]/2, CY]]);
+            // Level 3 強制檢查：Y 型數量 >= 2 (非入口處)
+            if (level === 3) {
+                let yNodes = nodes.filter(n => n.type === 'Y');
+                if (yNodes.length < 2) {
+                    // 強制塞 2 個 Y (避開 L0_T)
+                    let safety = 0;
+                    while (nodes.filter(n => n.type === 'Y').length < 2 && safety < 10) {
+                        let idx = Math.floor(Math.random() * nodes.length);
+                        if (nodes[idx].id !== 'L0_T') nodes[idx].type = 'Y';
+                        safety++;
+                    }
+                }
             }
-            // 中心穿透
-            addSeg('L3_T', 'L3_B', 2, 0, [[CX, CY-90], [CX, CY+90]]); 
-            addSeg('L3_L', 'L3_R', 1, 3, [[CX-90, CY], [CX+90, CY]]); 
+        }
 
-            // 環狀
+        function initSegments() {
+            segments = [];
+            const add = (id1, id2, d1, d2, pts) => segments.push({ from: id1, to: id2, fromDir: d1, toDir: d2, points: pts, powered: false });
+            
+            // Source -> L0_T (2 -> 0)
+            segments.push({ from: 'SOURCE', to: 'L0_T', fromDir: 2, toDir: 0, points: [[CX, 70], [CX, CY - 300]], powered: false });
+
+            // Axes
+            for(let i=0; i<3; i++) {
+                add(`L${i}_T`, `L${i+1}_T`, 2, 0, [[CX, CY-BOX_SIZES[i]/2], [CX, CY-BOX_SIZES[i+1]/2]]);
+                add(`L${i}_B`, `L${i+1}_B`, 0, 2, [[CX, CY+BOX_SIZES[i]/2], [CX, CY+BOX_SIZES[i+1]/2]]); 
+                add(`L${i}_L`, `L${i+1}_L`, 1, 3, [[CX-BOX_SIZES[i]/2, CY], [CX-BOX_SIZES[i+1]/2, CY]]);
+                add(`L${i}_R`, `L${i+1}_R`, 3, 1, [[CX+BOX_SIZES[i]/2, CY], [CX+BOX_SIZES[i+1]/2, CY]]);
+            }
+            // Center
+            add('L3_T', 'L3_B', 2, 0, [[CX, CY-90], [CX, CY+90]]); 
+            add('L3_L', 'L3_R', 1, 3, [[CX-90, CY], [CX+90, CY]]); 
+
+            // Rings
             BOX_SIZES.forEach((size, i) => {
                 const h = size/2;
-                addSeg(`L${i}_T`, `L${i}_R`, 1, 0, [[CX, CY-h], [CX+h, CY-h], [CX+h, CY]]);
-                addSeg(`L${i}_R`, `L${i}_B`, 2, 1, [[CX+h, CY], [CX+h, CY+h], [CX, CY+h]]);
-                addSeg(`L${i}_B`, `L${i}_L`, 3, 2, [[CX, CY+h], [CX-h, CY+h], [CX-h, CY]]);
-                addSeg(`L${i}_L`, `L${i}_T`, 0, 3, [[CX-h, CY], [CX-h, CY-h], [CX, CY-h]]);
+                add(`L${i}_T`, `L${i}_R`, 1, 0, [[CX, CY-h], [CX+h, CY-h], [CX+h, CY]]);
+                add(`L${i}_R`, `L${i}_B`, 2, 1, [[CX+h, CY], [CX+h, CY+h], [CX, CY+h]]);
+                add(`L${i}_B`, `L${i}_L`, 3, 2, [[CX, CY+h], [CX-h, CY+h], [CX-h, CY]]);
+                add(`L${i}_L`, `L${i}_T`, 0, 3, [[CX-h, CY], [CX-h, CY-h], [CX, CY-h]]);
             });
+        }
 
-            // C. 配置目標 (固定位置)
+        function initTargets(level, count) {
+            targets = [];
             const findSeg = (id1, id2) => segments.findIndex(s => (s.from===id1 && s.to===id2) || (s.from===id2 && s.to===id1));
             const centerV = findSeg('L3_T', 'L3_B');
             const centerH = findSeg('L3_L', 'L3_R');
 
             let pool = [];
-            // 固定目標配置，確保有虛線殘留
+            // 使用固定的高難度目標配置
             if (level === 1) {
-                // L1: 3 Targets (留3個空位)
                 pool = [
                     { x: CX, y: CY, segIndices: [centerV, centerH] },
                     { x: CX + 300, y: CY - 300, segIndices: [findSeg('L0_T', 'L0_R')] },
                     { x: CX - 300, y: CY + 300, segIndices: [findSeg('L0_B', 'L0_L')] }
                 ];
             } else if (level === 2) {
-                // L2: 4 Targets
                 pool = [
                     { x: CX, y: CY, segIndices: [centerV, centerH] },
                     { x: CX - 300, y: CY - 300, segIndices: [findSeg('L0_L', 'L0_T')] },
-                    { x: CX + 230, y: CY + 230, segIndices: [findSeg('L1_R', 'L1_B')] },
+                    { x: CX + 300, y: CY + 300, segIndices: [findSeg('L0_R', 'L0_B')] },
                     { x: CX + 90, y: CY - 90, segIndices: [findSeg('L3_T', 'L3_R')] }
                 ];
             } else {
-                // L3: 6 Targets
                 pool = [
                     { x: CX, y: CY, segIndices: [centerV, centerH] },
                     { x: CX + 300, y: CY - 300, segIndices: [findSeg('L0_T', 'L0_R')] },
@@ -326,20 +304,135 @@
                     { x: CX + 90, y: CY - 90, segIndices: [findSeg('L3_T', 'L3_R')] }
                 ];
             }
-            for(let i=0; i<targetCount; i++) targets.push({ ...pool[i], powered: false });
+            for(let i=0; i<count; i++) targets.push({ ...pool[i], powered: false });
         }
 
-        // --- 4. 電力運算 ---
-        function calculatePower() {
-            nodes.forEach(n => n.powered = false);
-            segments.forEach(s => s.powered = false);
-            targets.forEach(t => t.powered = false);
+        // --- Solver: 遍歷所有狀態 ---
+        function findSolution(requiredTargets) {
+            // 嘗試所有 256 種層級旋轉組合
+            for (let i = 0; i < 256; i++) {
+                applyState(i);
+                let litT = simPower().targets;
+                
+                if (litT === requiredTargets) {
+                    let litS = segments.filter(s => s.simPowered).length;
+                    return { solved: true, solutionState: i, litSegments: litS };
+                }
+            }
+            return { solved: false };
+        }
 
-            let queue = []; 
+        // --- Scrambler: 尋找符合條件的初始狀態 ---
+        function scrambleBoard(solState, minMoves) {
+            let bestStart = -1;
+            
+            // 隨機嘗試 100 種打亂
+            for (let k = 0; k < 100; k++) {
+                let rndState = Math.floor(Math.random() * 256);
+                if (rndState === solState) continue; // 避免直接隨機到答案
+
+                // 計算步數距離 (Difficulty)
+                let dist = 0;
+                let tempS = solState;
+                let tempR = rndState;
+                for(let l=0; l<4; l++) {
+                    let rS = tempS % 4;
+                    let rR = tempR % 4;
+                    // 計算順時針轉幾次能到答案
+                    // dist += (rS - rR + 4) % 4; // 這樣算步數
+                    // 只要不同就算 1 步? 題目要求"動三次"，指點擊次數
+                    dist += (rS - rR + 4) % 4; 
+                    
+                    tempS = Math.floor(tempS / 4);
+                    tempR = Math.floor(tempR / 4);
+                }
+
+                if (dist >= minMoves) {
+                    // 檢查是否全暗
+                    applyState(rndState);
+                    
+                    // 檢查1: 亮起的線段數 (最好是0, 或是極少)
+                    // 檢查2: L0_T 是否連接 Source (Port 0)
+                    // 最嚴格檢查: L0_T 必須斷開 Source
+                    let l0_t = nodes.find(n => n.id === 'L0_T');
+                    let isSourceBlocked = true;
+                    // Source connects to Port 0.
+                    // T: connects 0 unless rot=2 (Down)
+                    // L: connects 0 if rot=0,3
+                    // Y: Always connects 0 (Rot 0,1,2,3 all have 0) -> 這就是為什麼 L3 之前有問題
+                    // 所以前面我們禁用了 L0_T 為 Y
+                    
+                    let connectsSource = false;
+                    let ports = getExitPorts(l0_t.type, l0_t.rot, -1); // -1 dummy
+                    // getExitPorts logic:
+                    if (l0_t.type === 'T') {
+                        if ((l0_t.rot + 2) % 4 !== 0) connectsSource = true;
+                    } else if (l0_t.type === 'L') {
+                        if (l0_t.rot === 0 || l0_t.rot === 3) connectsSource = true;
+                    } else if (l0_t.type === 'Y') {
+                        connectsSource = true; 
+                    }
+
+                    if (!connectsSource) {
+                        // 這是完美的開局：Source 直接斷掉，全場全暗
+                        return true; 
+                    }
+                }
+            }
+            return false;
+        }
+
+        function applyState(state) {
+            let temp = state;
+            for (let layer = 0; layer < 4; layer++) {
+                let rot = temp % 4;
+                temp = Math.floor(temp / 4);
+                nodes.filter(n => n.layer === layer).forEach(n => n.rot = rot);
+            }
+        }
+
+        // --- 核心邏輯 ---
+        function getExitPorts(type, rot, entry) {
+            let exits = [];
+            if (type === 'T') {
+                let block = (rot + 2) % 4;
+                if (entry === -1 || entry !== block) { // -1 means "query all ports"
+                    for(let d=0; d<4; d++) if(d !== block && d !== entry) exits.push(d);
+                }
+            } else if (type === 'L') {
+                let p1 = rot, p2 = (rot + 1) % 4;
+                if (entry === -1) { exits.push(p1, p2); }
+                else if (entry === p1) exits.push(p2);
+                else if (entry === p2) exits.push(p1);
+            } else if (type === 'Y') {
+                let pairs = (rot % 2 === 0) ? [[0, 3], [1, 2]] : [[0, 1], [2, 3]];
+                pairs.forEach(pair => {
+                    if (entry === -1) { exits.push(pair[0], pair[1]); }
+                    else if (entry === pair[0]) exits.push(pair[1]);
+                    else if (entry === pair[1]) exits.push(pair[0]);
+                });
+            }
+            return exits;
+        }
+
+        function simPower() {
+            nodes.forEach(n => n.simPowered = false);
+            segments.forEach(s => s.simPowered = false);
+            
+            let queue = [];
             let startSeg = segments.find(s => s.from === 'SOURCE');
-            if(startSeg) {
-                startSeg.powered = true;
-                queue.push({ id: startSeg.to, entry: 0 }); 
+            
+            // Check L0_T connection explicitly first
+            let l0_t = nodes.find(n => n.id === startSeg.to); // L0_T
+            let sourceConnects = false;
+            // Source enters L0_T at Port 0
+            if (l0_t.type === 'T') sourceConnects = ((l0_t.rot + 2) % 4 !== 0);
+            else if (l0_t.type === 'L') sourceConnects = (l0_t.rot === 0 || l0_t.rot === 3);
+            else if (l0_t.type === 'Y') sourceConnects = true;
+
+            if (sourceConnects) {
+                startSeg.simPowered = true;
+                queue.push({ id: l0_t.id, entry: 0 });
             }
 
             let visited = new Set();
@@ -347,14 +440,59 @@
                 let item = queue.shift();
                 let currNode = nodes.find(n => n.id === item.id);
                 if (!currNode) continue;
-                
+                let stateKey = `${item.id}_${item.entry}`;
+                if (visited.has(stateKey)) continue;
+                visited.add(stateKey);
+                currNode.simPowered = true;
+
+                let exitPorts = getExitPorts(currNode.type, currNode.rot, item.entry);
+                exitPorts.forEach(exitDir => {
+                    let seg = segments.find(s => (s.from === item.id && s.fromDir === exitDir) || (s.to === item.id && s.toDir === exitDir));
+                    if (seg) {
+                        seg.simPowered = true;
+                        let neighborId = (seg.from === item.id) ? seg.to : seg.from;
+                        let neighborEntryDir = (seg.from === item.id) ? seg.toDir : seg.fromDir;
+                        queue.push({ id: neighborId, entry: neighborEntryDir });
+                    }
+                });
+            }
+            let tCount = 0;
+            targets.forEach(t => { if (t.segIndices.some(idx => segments[idx].simPowered)) tCount++; });
+            return { targets: tCount };
+        }
+
+        // --- 實際電力運算 ---
+        function calculatePower() {
+            nodes.forEach(n => n.powered = false);
+            segments.forEach(s => s.powered = false);
+            targets.forEach(t => t.powered = false);
+
+            let queue = [];
+            let startSeg = segments.find(s => s.from === 'SOURCE');
+            
+            // Same rigorous check
+            let l0_t = nodes.find(n => n.id === startSeg.to);
+            let sourceConnects = false;
+            if (l0_t.type === 'T') sourceConnects = ((l0_t.rot + 2) % 4 !== 0);
+            else if (l0_t.type === 'L') sourceConnects = (l0_t.rot === 0 || l0_t.rot === 3);
+            else if (l0_t.type === 'Y') sourceConnects = true;
+
+            if (sourceConnects) {
+                startSeg.powered = true;
+                queue.push({ id: l0_t.id, entry: 0 });
+            }
+
+            let visited = new Set();
+            while(queue.length > 0) {
+                let item = queue.shift();
+                let currNode = nodes.find(n => n.id === item.id);
+                if (!currNode) continue;
                 let stateKey = `${item.id}_${item.entry}`;
                 if (visited.has(stateKey)) continue;
                 visited.add(stateKey);
                 currNode.powered = true; 
 
                 let exitPorts = getExitPorts(currNode.type, currNode.rot, item.entry);
-
                 exitPorts.forEach(exitDir => {
                     let seg = segments.find(s => (s.from === item.id && s.fromDir === exitDir) || (s.to === item.id && s.toDir === exitDir));
                     if (seg) {
@@ -377,33 +515,9 @@
             
             targetDisp.innerText = `${litCount} / ${targetCount}`;
 
-            if (litCount === targetCount && isPlaying && !isLevelComplete) {
+            if (hasPlayerMoved && litCount === targetCount && isPlaying && !isLevelComplete) {
                 levelCleared();
             }
-        }
-
-        function getExitPorts(type, rot, entry) {
-            let exits = [];
-            if (type === 'T') {
-                let block = (rot + 2) % 4;
-                if (entry !== block) {
-                    for(let d=0; d<4; d++) if(d !== block && d !== entry) exits.push(d);
-                }
-            } else if (type === 'L') {
-                let p1 = rot, p2 = (rot + 1) % 4;
-                if (entry === p1) exits.push(p2);
-                else if (entry === p2) exits.push(p1);
-            } else if (type === 'Y') {
-                // Y (Double L): Up(0)-Left(3) & Down(2)-Right(1)
-                // Rot 0/2: Pairs (0,3), (1,2)
-                // Rot 1/3: Pairs (0,1), (2,3)
-                let pairs = (rot % 2 === 0) ? [[0, 3], [1, 2]] : [[0, 1], [2, 3]];
-                pairs.forEach(pair => {
-                    if (entry === pair[0]) exits.push(pair[1]);
-                    if (entry === pair[1]) exits.push(pair[0]);
-                });
-            }
-            return exits;
         }
 
         // --- 5. 繪圖 ---
@@ -486,6 +600,8 @@
 
         canvas.addEventListener('click', (e) => {
             if (!isPlaying || isLevelComplete) return;
+
+            hasPlayerMoved = true;
 
             const rect = canvas.getBoundingClientRect();
             const mx = e.clientX - rect.left;
