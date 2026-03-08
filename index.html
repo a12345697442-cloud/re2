@@ -3,7 +3,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>電路維修專家 - 100% 圖片完美還原版</title>
+    <title>電路維修專家 - 唯一解鎖定版</title>
     <style>
         body { background: #050505; color: #eee; text-align: center; font-family: 'Segoe UI', sans-serif; margin: 0; overflow: hidden; }
         
@@ -52,7 +52,7 @@
         <p id="overlay-desc">
             歡迎來到電力中樞。<br>
             <strong>Level 1 啟動。</strong><br>
-            <span style="color:#ffff00">系統提示：100% 圖片配置已載入，包含特定線段的實體抹除。</span>
+            <span style="color:#ffff00">提示：入口必須為「倒T」，最左側為「卜型」。找對方向即可通電。</span>
         </p>
         <button id="overlay-btn" onclick="startGame()">開始挑戰</button>
     </div>
@@ -82,31 +82,31 @@
         let segments = [];
         let targets = [];
 
-        // --- 1. 100% 忠於圖片的客製化資料庫 ---
-        // types: [12點, 3點, 6點, 9點] 的符號
-        // sol: 對應 11.jpg 唯一解答的角度
-        // offset: 難度控制 (玩家需點擊的次數)，系統會自動換算為初始斷電角度
+        // --- 1. 100% 忠於圖片的唯一解資料庫 ---
+        // 角度定義: 0=倒T(┴), 1=卜型(├), 2=正T(┬), 3=反卜(┤)
         const LEVELS = {
             1: {
                 layers: 3, time: 60,
                 data: [
-                    // 最外圈: 依照您的文字指示
-                    { types: ['T','T','L','T'], sol: [0, 3, 0, 1], offset: 2 }, // 點 2 次 (確保 L0_T 初始為 2 斷電)
-                    // 中圈: 依照您的文字指示
-                    { types: ['L','L','Y','T'], sol: [0, 1, 0, 2], offset: 1 }, // 點 1 次
-                    // 最內圈: 依照您的文字指示
-                    { types: ['Y','L','T','T'], sol: [0, 0, 0, 2], offset: 1 }  // 點 1 次
+                    // L0 (最外圈): 12點T, 3點T, 6點L, 9點T
+                    // 解答：L0_T(倒T=0), L0_L(卜=1)
+                    // Offset 2 -> 讓 L0_T 初始為 2(正T，阻斷上方)，需點擊2次。
+                    { types: ['T','T','L','T'], sol: [0, 3, 3, 1], offset: 2 }, 
+                    // L1 (中圈): 12點L, 3點L, 6點Y, 9點T
+                    { types: ['L','L','Y','T'], sol: [3, 0, 0, 3], offset: 1 }, 
+                    // L2 (最內圈): 12點Y, 3點L, 6點T, 9點T
+                    // 解答：L2_B(卜=1) 負責點亮中心
+                    { types: ['Y','L','T','T'], sol: [1, 2, 1, 1], offset: 1 }  
                 ],
                 targets: ['Center', 'L0_TR', 'L0_BL'],
-                // 物理抹除您指出的「最內圈左下角沒有線」
-                removeSegs: ['L2_BL'] 
+                removeSegs: ['L2_BL'] // 物理抹除最內圈左下角
             },
             2: {
                 layers: 3, time: 90,
                 data: [
-                    { types: ['T','T','T','T'], sol: [0, 3, 0, 1], offset: 2 }, // 點 2 次
-                    { types: ['T','L','T','L'], sol: [0, 0, 0, 2], offset: 1 }, // 點 1 次
-                    { types: ['T','T','L','L'], sol: [0, 0, 0, 2], offset: 2 }  // 點 2 次
+                    { types: ['T','T','T','T'], sol: [1, 3, 0, 1], offset: 2 }, 
+                    { types: ['T','L','T','L'], sol: [1, 0, 1, 2], offset: 1 }, 
+                    { types: ['T','T','L','L'], sol: [1, 1, 0, 2], offset: 2 }  
                 ],
                 targets: ['Center', 'L0_TR', 'L0_BL', 'L1_TR'],
                 removeSegs: []
@@ -114,10 +114,10 @@
             3: {
                 layers: 4, time: 120,
                 data: [
-                    { types: ['T','T','T','T'], sol: [0, 3, 0, 1], offset: 2 }, // 點 2 次
-                    { types: ['T','T','T','T'], sol: [0, 3, 0, 2], offset: 3 }, // 點 3 次
-                    { types: ['T','Y','T','T'], sol: [0, 0, 0, 2], offset: 2 }, // 點 2 次
-                    { types: ['T','L','Y','L'], sol: [0, 0, 0, 2], offset: 3 }  // 點 3 次
+                    { types: ['T','T','T','T'], sol: [1, 3, 0, 1], offset: 2 }, 
+                    { types: ['T','T','T','Y'], sol: [1, 3, 0, 1], offset: 3 }, 
+                    { types: ['T','Y','T','T'], sol: [1, 0, 0, 1], offset: 2 }, 
+                    { types: ['T','L','Y','L'], sol: [1, 1, 0, 3], offset: 3 }  
                 ],
                 targets: ['Center', 'L0_TR', 'L0_BL', 'L1_TL', 'L2_BR'],
                 removeSegs: []
@@ -147,7 +147,6 @@
 
             initExactMap(level);
             
-            // 初始狀態 (真實物理斷電)
             calculatePower();
             draw();
             
@@ -214,43 +213,35 @@
             let boxSizes = (data.layers === 3) ? [500, 340, 180] : [600, 460, 320, 180];
             const lc = data.layers;
 
-            // A. 生成節點
             boxSizes.forEach((size, i) => {
                 const half = size / 2;
                 const layerNum = lc - i; 
                 const layerData = data.data[i];
                 
                 const positions = [
-                    { x: CX, y: CY - half },      // Top (0)
-                    { x: CX + half, y: CY },      // Right (1)
-                    { x: CX, y: CY + half },      // Bottom (2)
-                    { x: CX - half, y: CY }       // Left (3)
+                    { x: CX, y: CY - half },      // Top
+                    { x: CX + half, y: CY },      // Right
+                    { x: CX, y: CY + half },      // Bottom
+                    { x: CX - half, y: CY }       // Left
                 ];
 
                 for (let j = 0; j < 4; j++) {
                     let type = layerData.types[j];
                     let solRot = layerData.sol[j];
-                    // 逆推初始角度：(解答 - 步數 + 4) 取餘數
                     let initRot = (solRot - layerData.offset + 4) % 4;
                     
                     let idSuffix = ['T', 'R', 'B', 'L'][j];
                     nodes.push({ 
                         id: `L${i}_${idSuffix}`, 
-                        layer: i, 
-                        x: positions[j].x, 
-                        y: positions[j].y, 
-                        type: type, 
-                        rot: initRot, 
-                        solRot: solRot, // 綁定唯一通關密碼
+                        layer: i, x: positions[j].x, y: positions[j].y, 
+                        type: type, rot: initRot, solRot: solRot, 
                         display: layerNum 
                     });
                 }
             });
 
-            // B. 建立線路
             addSeg('SOURCE', 'L0_T', 2, 0, [[CX, 70], [CX, CY - boxSizes[0]/2 - 50]], 'SRC');
             
-            // 軸線貫通
             for(let i=0; i<lc-1; i++) {
                 addSeg(`L${i}_T`, `L${i+1}_T`, 2, 0, [[CX, CY-boxSizes[i]/2], [CX, CY-boxSizes[i+1]/2]], 'AXIS');
                 addSeg(`L${i}_B`, `L${i+1}_B`, 0, 2, [[CX, CY+boxSizes[i]/2], [CX, CY+boxSizes[i+1]/2]], 'AXIS'); 
@@ -260,7 +251,6 @@
             addSeg(`L${lc-1}_T`, `L${lc-1}_B`, 2, 0, [[CX, CY-boxSizes[lc-1]/2], [CX, CY+boxSizes[lc-1]/2]], 'CENTER_V'); 
             addSeg(`L${lc-1}_L`, `L${lc-1}_R`, 1, 3, [[CX-boxSizes[lc-1]/2, CY], [CX+boxSizes[lc-1]/2, CY]], 'CENTER_H'); 
 
-            // 環狀連線 (加入 Tag 方便精準刪除)
             boxSizes.forEach((size, i) => {
                 const h = size/2;
                 addSeg(`L${i}_T`, `L${i}_R`, 1, 0, [[CX, CY-h], [CX+h, CY-h], [CX+h, CY]], `L${i}_TR`);
@@ -269,13 +259,11 @@
                 addSeg(`L${i}_L`, `L${i}_T`, 0, 3, [[CX-h, CY], [CX-h, CY-h], [CX, CY-h]], `L${i}_TL`);
             });
 
-            // 物理刪除特定線段 (例如第一關最內圈左下角)
             data.removeSegs.forEach(tagToRemove => {
                 let idx = segments.findIndex(s => s.tag === tagToRemove);
                 if (idx !== -1) segments.splice(idx, 1);
             });
 
-            // C. 配置目標位置
             const findSegByTag = (tag1, tag2) => segments.findIndex(s => s.tag === tag1 || s.tag === tag2);
             
             data.targets.forEach(tName => {
@@ -286,7 +274,7 @@
                     let layerIdx = parseInt(parts[0].replace('L', ''));
                     let corner = parts[1];
                     let h = boxSizes[layerIdx]/2;
-                    sIdx = findSegByTag(tName, ''); // 找對應的轉角線段
+                    sIdx = findSegByTag(tName, '');
                     if (corner === 'TR') { tx = CX + h; ty = CY - h; }
                     if (corner === 'BR') { tx = CX + h; ty = CY + h; }
                     if (corner === 'BL') { tx = CX - h; ty = CY + h; }
@@ -298,9 +286,8 @@
             });
         }
 
-        // --- 4. 真實電力傳導引擎 (BFS) ---
+        // --- 4. 真實電力傳導與唯一解判定 ---
         function calculatePower() {
-            // 1. 重置狀態
             nodes.forEach(n => n.powered = false);
             segments.forEach(s => s.powered = false);
             targets.forEach(t => t.powered = false);
@@ -308,16 +295,14 @@
             let queue = []; 
             let startSeg = segments.find(s => s.tag === 'SRC');
             
-            // 2. 檢測入口 (強制阻擋)
             let l0_t = nodes.find(n => n.id === 'L0_T');
-            if (l0_t && canEnter(l0_t, 0)) { // 0 代表從上方進入
+            if (l0_t && canEnter(l0_t, 0)) { 
                 startSeg.powered = true;
                 queue.push({ nodeId: 'L0_T', entryPort: 0 }); 
             }
 
             let visited = new Set();
 
-            // 3. 電力蔓延
             while(queue.length > 0) {
                 let curr = queue.shift();
                 let node = nodes.find(n => n.id === curr.nodeId);
@@ -350,49 +335,46 @@
                 });
             }
 
-            // 更新目標發光狀態
             targets.forEach(t => {
                 if (segments[t.segIdx] && segments[t.segIdx].powered) t.powered = true;
             });
 
-            // 4. 【唯一解強制判定】
-            // 必須 100% 符合圖片解答，才會過關！
+            // 【唯一解強制判定】
             let isPerfectMatch = nodes.every(n => n.rot === n.solRot);
 
             if (isPerfectMatch && hasPlayerMoved) {
-                // 觸發勝利：強制點亮所有解答路徑！
+                // 強制點亮所有解答路徑
                 targets.forEach(t => t.powered = true);
                 
-                // 保留圖片中未通電的「虛線」氛圍，將死胡同熄滅
+                // 保留圖片的虛線氛圍
                 segments.forEach(s => {
                     let connectsToTarget = targets.some(t => t.segIdx === segments.indexOf(s));
                     if (!connectsToTarget && s.tag !== 'SRC' && s.tag !== 'AXIS' && s.tag !== 'CENTER_V') {
-                        if (Math.random() > 0.3) s.powered = false; // 70% 機率熄滅多餘分支
+                        if (Math.random() > 0.3) s.powered = false; 
                     }
                 });
                 
+                targetDisp.innerText = `OK`;
                 levelCleared();
+            } else {
+                // 計算當前發光的目標數 (純視覺回饋)
+                let litCount = targets.filter(t => t.powered).length;
+                targetDisp.innerText = `維修中...`;
             }
         }
 
-        // 判斷端口是否開放接收電力
         function canEnter(node, port) {
             if (node.type === 'T') {
-                let block = (node.rot + 2) % 4; // T型唯一被封死的方向
+                let block = (node.rot + 2) % 4; 
                 return port !== block;
             }
             if (node.type === 'L') {
-                let p1 = node.rot;
-                let p2 = (node.rot + 1) % 4;
-                return port === p1 || port === p2;
+                return port === node.rot || port === (node.rot + 1) % 4;
             }
-            if (node.type === 'Y') {
-                return true; // Y型雙通道皆可進入
-            }
+            if (node.type === 'Y') return true; 
             return false;
         }
 
-        // 計算電力會從哪些端口出去
         function getExitPorts(type, rot, entryPort) {
             let exits = [];
             if (type === 'T') {
@@ -418,12 +400,10 @@
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 電池
             ctx.fillStyle = "#1a1a1a"; ctx.fillRect(CX - 50, 20, 100, 50);
             ctx.strokeStyle = "#00ffcc"; ctx.lineWidth = 2; ctx.setLineDash([]); ctx.strokeRect(CX - 50, 20, 100, 50);
             ctx.fillStyle = "#00ffcc"; ctx.font = "bold 16px Arial"; ctx.fillText("POWER", CX - 30, 52);
 
-            // 線路 (發光效果)
             segments.forEach(seg => {
                 ctx.beginPath();
                 if (seg.powered) {
@@ -441,7 +421,6 @@
             });
             ctx.shadowBlur = 0;
 
-            // 目標綠圈
             targets.forEach(t => {
                 ctx.beginPath();
                 if (t.powered) {
@@ -455,7 +434,6 @@
             });
             ctx.shadowBlur = 0;
 
-            // 節點
             nodes.forEach(n => {
                 ctx.strokeStyle = "red"; ctx.lineWidth = 2; ctx.setLineDash([]);
                 ctx.strokeRect(n.x - 25, n.y - 25, 50, 50);
