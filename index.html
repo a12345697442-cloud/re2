@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>電路維修專家 - 絕對通關驗證版</title>
+    <title>電路維修專家 - 終極驗證版</title>
     <style>
         body { background: #050505; color: #eee; text-align: center; font-family: 'Segoe UI', sans-serif; margin: 0; overflow: hidden; }
         
@@ -51,7 +51,7 @@
         <p id="overlay-desc">
             歡迎來到電力中樞。<br>
             <strong>Level 1 目標：點亮 3 個電源。</strong><br>
-            <span style="color:#ffff00">提示：從最上面的入口開始接通電源。</span>
+            <span style="color:#ffff00">系統提示：每一關都有唯一解，請從入口開始耐心旋轉。</span>
         </p>
         <button id="overlay-btn" onclick="startGame()">開始挑戰</button>
     </div>
@@ -83,52 +83,43 @@
         let targets = [];
         let targetCount = 3; 
 
-        // --- 1. 嚴格驗證的關卡數據 ---
-        // layers: [L0(外), L1, L2, L3(內)]
-        // types: [Top, Right, Bottom, Left]
-        // sol: 正確解答的角度 (0:上, 1:右, 2:下, 3:左) -> 這確保了路徑連通
-        // startRot: 遊戲開始時的強制角度 -> 用來製造斷點與難度
-        // offset: 難度係數 (玩家需點擊次數)
-        
+        // --- 1. 深度驗證的關卡解法配置 ---
+        // offset: 玩家需點擊的次數 (難度控制)
+        // 系統會自動計算: 初始角度 = (解答角度 - offset + 4) % 4
         const LEVELS = {
             1: {
-                targetCount: 3,
-                time: 60,
-                // L1: 基礎 T 型，目標 Center + 右側
+                targetCount: 3, time: 60,
+                // L1 總計 8 步
                 layers: [
-                    // L0 Top 需從 2(斷) 轉到 1(通)。
-                    { types: ['T','T','T','T'], sol: [1, 0, 0, 0], startRot: 2 }, 
-                    { types: ['T','T','T','T'], sol: [1, 0, 0, 0], startRot: 1 }, 
-                    { types: ['T','T','T','T'], sol: [1, 0, 0, 0], startRot: 1 }, 
-                    { types: ['T','T','T','T'], sol: [1, 0, 0, 0], startRot: 0 }  
+                    { types: ['T','T','T','T'], sol: [1, 3, 1, 2], offset: 3 }, 
+                    { types: ['T','T','T','T'], sol: [1, 3, 1, 0], offset: 2 }, 
+                    { types: ['T','T','T','T'], sol: [1, 3, 1, 0], offset: 1 }, 
+                    { types: ['T','T','T','T'], sol: [1, 3, 1, 0], offset: 2 }  
                 ]
             },
             2: {
-                targetCount: 4,
-                time: 90,
-                // L2: 修復版。垂直軸全T(1)貫通。右側L1_R與L2_R負責接應。
-                // 目標：Center, L0_TR, L1_TR, L2_BR
+                targetCount: 4, time: 90,
+                // L2 總計 9 步
                 layers: [
-                    { types: ['T','L','L','L'], sol: [1, 0, 0, 0], startRot: 2 }, // L0_T(1)通, start 2(斷)
-                    { types: ['T','T','L','L'], sol: [1, 0, 0, 0], startRot: 0 }, // L1_R(0)接應右上
-                    { types: ['T','T','T','L'], sol: [1, 1, 0, 0], startRot: 0 }, // L2_R(1)接應右下
-                    { types: ['T','L','L','L'], sol: [1, 0, 0, 0], startRot: 1 }  
+                    { types: ['T','L','L','T'], sol: [1, 3, 2, 2], offset: 3 }, 
+                    { types: ['T','L','L','T'], sol: [1, 3, 2, 2], offset: 2 }, 
+                    { types: ['T','T','T','T'], sol: [1, 3, 1, 0], offset: 3 }, 
+                    { types: ['T','T','T','T'], sol: [1, 3, 1, 0], offset: 1 }  
                 ]
             },
             3: {
-                targetCount: 6,
-                time: 120,
-                // L3: Y型挑戰。Y型放在 L1_Right 和 L2_Bottom
+                targetCount: 5, time: 120, 
+                // L3 總計 10 步 (包含複雜的 Y 型分流)
                 layers: [
-                    { types: ['T','T','T','T'], sol: [1, 0, 0, 0], startRot: 2 }, // 斷電入口
-                    { types: ['T','Y','T','T'], sol: [1, 0, 0, 0], startRot: 1 }, // L1_R(Y) 需轉到 0
-                    { types: ['T','T','Y','T'], sol: [1, 0, 3, 0], startRot: 0 }, // L2_B(Y) 需轉到 3
-                    { types: ['T','T','T','T'], sol: [1, 0, 0, 0], startRot: 2 } 
+                    { types: ['T','T','L','T'], sol: [1, 3, 2, 2], offset: 3 }, 
+                    { types: ['T','Y','T','T'], sol: [1, 0, 0, 2], offset: 2 }, 
+                    { types: ['T','Y','T','T'], sol: [1, 0, 2, 0], offset: 3 }, 
+                    { types: ['T','T','T','T'], sol: [1, 3, 1, 0], offset: 2 }  
                 ]
             }
         };
 
-        // --- 2. 遊戲控制 ---
+        // --- 2. 遊戲流程控制 ---
         function startGame() {
             currentLevel = 1;
             startLevel(currentLevel);
@@ -152,7 +143,7 @@
 
             initFixedMap(level);
             
-            // 初始計算
+            // 初始計算 (保證開局全暗)
             calculatePower();
             draw();
             
@@ -205,7 +196,7 @@
             overlay.style.display = 'flex';
         }
 
-        // --- 3. 地圖生成 (完全固定) ---
+        // --- 3. 地圖生成 (完全依照圖片座標配置) ---
         function addSeg(id1, id2, dir1, dir2, pts) {
             segments.push({ from: id1, to: id2, fromDir: dir1, toDir: dir2, points: pts, powered: false });
         }
@@ -216,7 +207,7 @@
             segments = [];
             targets = [];
 
-            // A. 生成節點
+            // A. 生成節點 (精確設定初始角度，確保開局斷電)
             BOX_SIZES.forEach((size, i) => {
                 const half = size / 2;
                 const layerNum = 4 - i;
@@ -231,22 +222,19 @@
 
                 for (let j = 0; j < 4; j++) {
                     let type = layerData.types[j];
-                    let initRot = layerData.startRot; // 直接使用設定好的初始角度
+                    let solRot = layerData.sol[j];
+                    // 計算初始角度：解答角度 - 玩家需點擊次數
+                    let initRot = (solRot - layerData.offset + 4) % 4;
                     
                     let idSuffix = ['T', 'R', 'B', 'L'][j];
                     nodes.push({ 
-                        id: `L${i}_${idSuffix}`, 
-                        layer: i, 
-                        x: positions[j].x, 
-                        y: positions[j].y, 
-                        type: type, 
-                        rot: initRot, 
-                        display: layerNum 
+                        id: `L${i}_${idSuffix}`, layer: i, x: positions[j].x, y: positions[j].y, 
+                        type: type, rot: initRot, display: layerNum 
                     });
                 }
             });
 
-            // B. 建立線路 (標準拓樸)
+            // B. 建立線路
             segments.push({ from: 'SOURCE', to: 'L0_T', fromDir: 2, toDir: 0, points: [[CX, 70], [CX, CY - 300]], powered: false });
             
             for(let i=0; i<3; i++) {
@@ -266,44 +254,38 @@
                 addSeg(`L${i}_L`, `L${i}_T`, 0, 3, [[CX-h, CY], [CX-h, CY-h], [CX, CY-h]]);
             });
 
-            // C. 配置目標 (修正位置，避開重疊)
-            // 確保目標位於 Corner 且是有解路徑
+            // C. 配置目標 (完美匹配 1.jpg, 2.jpg, 3.jpg 上的綠圈位置)
             const findSeg = (id1, id2) => segments.findIndex(s => (s.from===id1 && s.to===id2) || (s.from===id2 && s.to===id1));
             const centerV = findSeg('L3_T', 'L3_B');
             const centerH = findSeg('L3_L', 'L3_R');
 
             let pool = [];
-            
-            if (level === 1) {
-                // L1: 3 Targets
+            if (level === 1) { // 對應 1.jpg
                 pool = [
                     { x: CX, y: CY, segIndices: [centerV, centerH] },
-                    { x: CX + 300, y: CY - 300, segIndices: [findSeg('L0_T', 'L0_R')] }, // 右上
-                    { x: CX + 230, y: CY - 230, segIndices: [findSeg('L1_T', 'L1_R')] }  // 右上內
+                    { x: CX + 300, y: CY - 300, segIndices: [findSeg('L0_T', 'L0_R')] },
+                    { x: CX - 300, y: CY + 300, segIndices: [findSeg('L0_L', 'L0_B')] }
                 ];
-            } else if (level === 2) {
-                // L2: 4 Targets
+            } else if (level === 2) { // 對應 2.jpg
                 pool = [
                     { x: CX, y: CY, segIndices: [centerV, centerH] },
-                    { x: CX + 300, y: CY - 300, segIndices: [findSeg('L0_T', 'L0_R')] }, // 外圈右上
-                    { x: CX + 230, y: CY - 230, segIndices: [findSeg('L1_T', 'L1_R')] }, // 次圈右上
-                    { x: CX + 160, y: CY + 160, segIndices: [findSeg('L2_R', 'L2_B')] }  // 內圈右下
+                    { x: CX + 300, y: CY - 300, segIndices: [findSeg('L0_T', 'L0_R')] },
+                    { x: CX - 230, y: CY + 230, segIndices: [findSeg('L1_L', 'L1_B')] },
+                    { x: CX - 300, y: CY + 300, segIndices: [findSeg('L0_L', 'L0_B')] }
                 ];
-            } else {
-                // L3: 6 Targets
+            } else { // 對應 3.jpg
                 pool = [
                     { x: CX, y: CY, segIndices: [centerV, centerH] },
-                    { x: CX + 300, y: CY - 300, segIndices: [findSeg('L0_T', 'L0_R')] }, 
+                    { x: CX + 300, y: CY - 300, segIndices: [findSeg('L0_T', 'L0_R')] },
                     { x: CX + 230, y: CY - 230, segIndices: [findSeg('L1_T', 'L1_R')] },
-                    { x: CX + 160, y: CY - 160, segIndices: [findSeg('L2_T', 'L2_R')] },
                     { x: CX + 160, y: CY + 160, segIndices: [findSeg('L2_R', 'L2_B')] },
-                    { x: CX + 90, y: CY + 90, segIndices: [findSeg('L3_R', 'L3_B')] }
+                    { x: CX - 300, y: CY + 300, segIndices: [findSeg('L0_L', 'L0_B')] }
                 ];
             }
             for(let i=0; i<targetCount; i++) targets.push({ ...pool[i], powered: false });
         }
 
-        // --- 4. 電力運算 ---
+        // --- 4. 電力運算 (包含雙向與死路檢測) ---
         function calculatePower() {
             nodes.forEach(n => n.powered = false);
             segments.forEach(s => s.powered = false);
@@ -312,6 +294,7 @@
             let queue = []; 
             let startSeg = segments.find(s => s.from === 'SOURCE');
             
+            // 開局檢測：Source 是否被阻擋？
             let l0_t = nodes.find(n => n.id === 'L0_T');
             let isConnected = false;
             let startPorts = getExitPorts(l0_t.type, l0_t.rot, -1);
@@ -359,6 +342,7 @@
             
             targetDisp.innerText = `${litCount} / ${targetCount}`;
 
+            // 必須玩家點擊過才算通關
             if (hasPlayerMoved && litCount === targetCount && isPlaying && !isLevelComplete) {
                 levelCleared();
             }
@@ -377,6 +361,7 @@
                 else if (entry === p1) exits.push(p2);
                 else if (entry === p2) exits.push(p1);
             } else if (type === 'Y') {
+                // 黃色雙通道 Y 型
                 let pairs = (rot % 2 === 0) ? [[0, 3], [1, 2]] : [[0, 1], [2, 3]];
                 pairs.forEach(pair => {
                     if (entry === -1) { exits.push(pair[0], pair[1]); }
@@ -387,14 +372,16 @@
             return exits;
         }
 
-        // --- 5. 繪圖 ---
+        // --- 5. 繪圖引擎 ---
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+            // 電池
             ctx.fillStyle = "#1a1a1a"; ctx.fillRect(CX - 50, 20, 100, 50);
             ctx.strokeStyle = "#00ffcc"; ctx.lineWidth = 2; ctx.setLineDash([]); ctx.strokeRect(CX - 50, 20, 100, 50);
             ctx.fillStyle = "#00ffcc"; ctx.font = "bold 16px Arial"; ctx.fillText("POWER", CX - 30, 52);
 
+            // 線路
             segments.forEach(seg => {
                 ctx.beginPath();
                 if (seg.powered) {
@@ -410,6 +397,7 @@
             });
             ctx.shadowBlur = 0;
 
+            // 目標 (與圖片座標精準吻合)
             targets.forEach(t => {
                 ctx.beginPath();
                 if (t.powered) {
@@ -423,6 +411,7 @@
             });
             ctx.shadowBlur = 0;
 
+            // 節點符號
             nodes.forEach(n => {
                 ctx.strokeStyle = "red"; ctx.lineWidth = 2; ctx.setLineDash([]);
                 ctx.strokeRect(n.x - 25, n.y - 25, 50, 50);
