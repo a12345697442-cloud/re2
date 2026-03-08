@@ -1,8 +1,9 @@
+
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>電路維修專家 - 100% 圖片還原版</title>
+    <title>電路維修專家 - 100% 圖片完美還原版</title>
     <style>
         body { background: #050505; color: #eee; text-align: center; font-family: 'Segoe UI', sans-serif; margin: 0; overflow: hidden; }
         
@@ -51,7 +52,7 @@
         <p id="overlay-desc">
             歡迎來到電力中樞。<br>
             <strong>Level 1 啟動。</strong><br>
-            <span style="color:#ffff00">系統提示：已載入 100% 圖片實體配置。請尋找唯一通關方向。</span>
+            <span style="color:#ffff00">系統提示：100% 圖片配置已載入，包含特定線段的實體抹除。</span>
         </p>
         <button id="overlay-btn" onclick="startGame()">開始挑戰</button>
     </div>
@@ -81,47 +82,42 @@
         let segments = [];
         let targets = [];
 
-        // --- 1. 完全依照圖片 1:1 客製化的資料庫 ---
-        // layers: 每層的設定 [Top(12點), Right(3點), Bottom(6點), Left(9點)]
-        // types: 符號種類 (完全依照您的指示與圖片)
-        // sol: 隱藏的正確解答角度 (0:上, 1:右, 2:下, 3:左)
-        // offset: 玩家需要點擊該層的次數 (用來反推保證斷電的初始狀態)
+        // --- 1. 100% 忠於圖片的客製化資料庫 ---
+        // types: [12點, 3點, 6點, 9點] 的符號
+        // sol: 對應 11.jpg 唯一解答的角度
+        // offset: 難度控制 (玩家需點擊的次數)，系統會自動換算為初始斷電角度
         const LEVELS = {
             1: {
                 layers: 3, time: 60,
                 data: [
-                    // L0 (最外圈): 12點T, 3點T, 6點L, 9點T。 
-                    // offset 3 確保 L0_Top 初始為倒T(Rot 2)，阻斷電源
-                    { types: ['T','T','L','T'], sol: [1, 3, 0, 1], offset: 3 }, 
-                    // L1 (中圈): 12點L, 3點L, 6點Y, 9點T
-                    { types: ['L','L','Y','T'], sol: [0, 3, 1, 0], offset: 2 }, 
-                    // L2 (最內圈): 12點Y, 3點L, 6點T, 9點T
-                    { types: ['Y','L','T','T'], sol: [1, 0, 0, 1], offset: 1 }  
+                    // 最外圈: 依照您的文字指示
+                    { types: ['T','T','L','T'], sol: [0, 3, 0, 1], offset: 2 }, // 點 2 次 (確保 L0_T 初始為 2 斷電)
+                    // 中圈: 依照您的文字指示
+                    { types: ['L','L','Y','T'], sol: [0, 1, 0, 2], offset: 1 }, // 點 1 次
+                    // 最內圈: 依照您的文字指示
+                    { types: ['Y','L','T','T'], sol: [0, 0, 0, 2], offset: 1 }  // 點 1 次
                 ],
-                // 目標對應 1.jpg 與 11.jpg
                 targets: ['Center', 'L0_TR', 'L0_BL'],
                 // 物理抹除您指出的「最內圈左下角沒有線」
                 removeSegs: ['L2_BL'] 
             },
             2: {
                 layers: 3, time: 90,
-                // 對應 2.jpg
                 data: [
-                    { types: ['T','T','T','T'], sol: [1, 3, 0, 1], offset: 3 }, 
-                    { types: ['L','Y','T','T'], sol: [0, 1, 0, 0], offset: 2 }, 
-                    { types: ['T','L','T','T'], sol: [1, 0, 0, 1], offset: 1 }  
+                    { types: ['T','T','T','T'], sol: [0, 3, 0, 1], offset: 2 }, // 點 2 次
+                    { types: ['T','L','T','L'], sol: [0, 0, 0, 2], offset: 1 }, // 點 1 次
+                    { types: ['T','T','L','L'], sol: [0, 0, 0, 2], offset: 2 }  // 點 2 次
                 ],
                 targets: ['Center', 'L0_TR', 'L0_BL', 'L1_TR'],
                 removeSegs: []
             },
             3: {
                 layers: 4, time: 120,
-                // 對應 3.jpg
                 data: [
-                    { types: ['T','T','T','T'], sol: [1, 3, 0, 1], offset: 3 }, 
-                    { types: ['T','T','T','Y'], sol: [1, 3, 0, 1], offset: 2 }, 
-                    { types: ['T','Y','T','T'], sol: [1, 0, 0, 1], offset: 1 }, 
-                    { types: ['T','L','Y','L'], sol: [1, 1, 0, 3], offset: 2 }  
+                    { types: ['T','T','T','T'], sol: [0, 3, 0, 1], offset: 2 }, // 點 2 次
+                    { types: ['T','T','T','T'], sol: [0, 3, 0, 2], offset: 3 }, // 點 3 次
+                    { types: ['T','Y','T','T'], sol: [0, 0, 0, 2], offset: 2 }, // 點 2 次
+                    { types: ['T','L','Y','L'], sol: [0, 0, 0, 2], offset: 3 }  // 點 3 次
                 ],
                 targets: ['Center', 'L0_TR', 'L0_BL', 'L1_TL', 'L2_BR'],
                 removeSegs: []
@@ -151,7 +147,7 @@
 
             initExactMap(level);
             
-            // 初始狀態 (絕對全暗)
+            // 初始狀態 (真實物理斷電)
             calculatePower();
             draw();
             
@@ -170,7 +166,7 @@
             targetDisp.style.color = "#00ff00";
             targetDisp.innerText = "連線成功!";
             
-            let msg = `Level ${currentLevel} 完成！<br>精準匹配解答。<br>剩餘時間: ${timeLeft} 秒`;
+            let msg = `Level ${currentLevel} 完成！<br>電路已完美接通。<br>剩餘時間: ${timeLeft} 秒`;
             let btn = "前往下一關";
             let action = nextLevel;
 
@@ -218,7 +214,7 @@
             let boxSizes = (data.layers === 3) ? [500, 340, 180] : [600, 460, 320, 180];
             const lc = data.layers;
 
-            // A. 生成節點 (使用精確的解答與偏移量)
+            // A. 生成節點
             boxSizes.forEach((size, i) => {
                 const half = size / 2;
                 const layerNum = lc - i; 
@@ -234,7 +230,7 @@
                 for (let j = 0; j < 4; j++) {
                     let type = layerData.types[j];
                     let solRot = layerData.sol[j];
-                    // 計算初始角度：解答角度 - 玩家需點擊次數
+                    // 逆推初始角度：(解答 - 步數 + 4) 取餘數
                     let initRot = (solRot - layerData.offset + 4) % 4;
                     
                     let idSuffix = ['T', 'R', 'B', 'L'][j];
@@ -245,13 +241,13 @@
                         y: positions[j].y, 
                         type: type, 
                         rot: initRot, 
-                        solRot: solRot, // 儲存唯一解答密碼
+                        solRot: solRot, // 綁定唯一通關密碼
                         display: layerNum 
                     });
                 }
             });
 
-            // B. 建立實體線路
+            // B. 建立線路
             addSeg('SOURCE', 'L0_T', 2, 0, [[CX, 70], [CX, CY - boxSizes[0]/2 - 50]], 'SRC');
             
             // 軸線貫通
@@ -264,7 +260,7 @@
             addSeg(`L${lc-1}_T`, `L${lc-1}_B`, 2, 0, [[CX, CY-boxSizes[lc-1]/2], [CX, CY+boxSizes[lc-1]/2]], 'CENTER_V'); 
             addSeg(`L${lc-1}_L`, `L${lc-1}_R`, 1, 3, [[CX-boxSizes[lc-1]/2, CY], [CX+boxSizes[lc-1]/2, CY]], 'CENTER_H'); 
 
-            // 環狀連線 (為每個轉角加上專屬 Tag，方便後續精確刪除)
+            // 環狀連線 (加入 Tag 方便精準刪除)
             boxSizes.forEach((size, i) => {
                 const h = size/2;
                 addSeg(`L${i}_T`, `L${i}_R`, 1, 0, [[CX, CY-h], [CX+h, CY-h], [CX+h, CY]], `L${i}_TR`);
@@ -273,7 +269,7 @@
                 addSeg(`L${i}_L`, `L${i}_T`, 0, 3, [[CX-h, CY], [CX-h, CY-h], [CX, CY-h]], `L${i}_TL`);
             });
 
-            // 【重點修復】物理刪除您指出的特定虛線 (例如最內圈左下角)
+            // 物理刪除特定線段 (例如第一關最內圈左下角)
             data.removeSegs.forEach(tagToRemove => {
                 let idx = segments.findIndex(s => s.tag === tagToRemove);
                 if (idx !== -1) segments.splice(idx, 1);
@@ -290,7 +286,7 @@
                     let layerIdx = parseInt(parts[0].replace('L', ''));
                     let corner = parts[1];
                     let h = boxSizes[layerIdx]/2;
-                    sIdx = findSegByTag(tName, '');
+                    sIdx = findSegByTag(tName, ''); // 找對應的轉角線段
                     if (corner === 'TR') { tx = CX + h; ty = CY - h; }
                     if (corner === 'BR') { tx = CX + h; ty = CY + h; }
                     if (corner === 'BL') { tx = CX - h; ty = CY + h; }
@@ -302,25 +298,26 @@
             });
         }
 
-        // --- 4. 絕對判定邏輯 (Pattern Matching + 視覺蔓延) ---
+        // --- 4. 真實電力傳導引擎 (BFS) ---
         function calculatePower() {
             // 1. 重置狀態
             nodes.forEach(n => n.powered = false);
             segments.forEach(s => s.powered = false);
             targets.forEach(t => t.powered = false);
 
-            // 2. 真實 BFS 電力蔓延 (給玩家視覺回饋)
             let queue = []; 
             let startSeg = segments.find(s => s.tag === 'SRC');
-            let l0_t = nodes.find(n => n.id === 'L0_T');
             
-            // T型 Rot 2 (倒T) 必定封死上方 (Port 0)
-            if (l0_t && canEnter(l0_t, 0)) { 
+            // 2. 檢測入口 (強制阻擋)
+            let l0_t = nodes.find(n => n.id === 'L0_T');
+            if (l0_t && canEnter(l0_t, 0)) { // 0 代表從上方進入
                 startSeg.powered = true;
                 queue.push({ nodeId: 'L0_T', entryPort: 0 }); 
             }
 
             let visited = new Set();
+
+            // 3. 電力蔓延
             while(queue.length > 0) {
                 let curr = queue.shift();
                 let node = nodes.find(n => n.id === curr.nodeId);
@@ -333,6 +330,7 @@
                 node.powered = true; 
 
                 let exitPorts = getExitPorts(node.type, node.rot, curr.entryPort);
+
                 exitPorts.forEach(exitPort => {
                     let seg = segments.find(s => 
                         (s.from === node.id && s.fromDir === exitPort) || 
@@ -357,20 +355,19 @@
                 if (segments[t.segIdx] && segments[t.segIdx].powered) t.powered = true;
             });
 
-            // 3. 【唯一解強制判定】
-            // 只有當所有節點的角度，都完全等於預設的 solRot 時，才算真正過關！
+            // 4. 【唯一解強制判定】
+            // 必須 100% 符合圖片解答，才會過關！
             let isPerfectMatch = nodes.every(n => n.rot === n.solRot);
 
             if (isPerfectMatch && hasPlayerMoved) {
-                // 觸發勝利：強制點亮所有預設路徑！
+                // 觸發勝利：強制點亮所有解答路徑！
                 targets.forEach(t => t.powered = true);
                 
-                // 為了保留 2~4 條未通電的「虛線」，系統會自動關閉沒有連接著綠圈的死胡同
+                // 保留圖片中未通電的「虛線」氛圍，將死胡同熄滅
                 segments.forEach(s => {
                     let connectsToTarget = targets.some(t => t.segIdx === segments.indexOf(s));
                     if (!connectsToTarget && s.tag !== 'SRC' && s.tag !== 'AXIS' && s.tag !== 'CENTER_V') {
-                        // 有 60% 機率將無用支線變回虛線，完美重現遊戲氛圍
-                        if (Math.random() > 0.4) s.powered = false;
+                        if (Math.random() > 0.3) s.powered = false; // 70% 機率熄滅多餘分支
                     }
                 });
                 
@@ -378,18 +375,24 @@
             }
         }
 
+        // 判斷端口是否開放接收電力
         function canEnter(node, port) {
             if (node.type === 'T') {
-                let block = (node.rot + 2) % 4; 
+                let block = (node.rot + 2) % 4; // T型唯一被封死的方向
                 return port !== block;
             }
             if (node.type === 'L') {
-                return port === node.rot || port === (node.rot + 1) % 4;
+                let p1 = node.rot;
+                let p2 = (node.rot + 1) % 4;
+                return port === p1 || port === p2;
             }
-            if (node.type === 'Y') return true; 
+            if (node.type === 'Y') {
+                return true; // Y型雙通道皆可進入
+            }
             return false;
         }
 
+        // 計算電力會從哪些端口出去
         function getExitPorts(type, rot, entryPort) {
             let exits = [];
             if (type === 'T') {
@@ -420,7 +423,7 @@
             ctx.strokeStyle = "#00ffcc"; ctx.lineWidth = 2; ctx.setLineDash([]); ctx.strokeRect(CX - 50, 20, 100, 50);
             ctx.fillStyle = "#00ffcc"; ctx.font = "bold 16px Arial"; ctx.fillText("POWER", CX - 30, 52);
 
-            // 線路 (發光效果與虛線切換)
+            // 線路 (發光效果)
             segments.forEach(seg => {
                 ctx.beginPath();
                 if (seg.powered) {
