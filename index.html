@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -88,13 +89,12 @@
                 data: [
                     // L0 (最外圈) - 12點右2, 3點左1, 6點右1
                     { types: ['T','T','L','T'], sol: [2, 3, 0, 1], offset: 0 }, 
-                    // L1 (中圈) - 12點右1, 3點改L(朝右), 6點改Y
-                    { types: ['L','L','Y','T'], sol: [1, 3, 1, 2], offset: 0 }, 
+                    // L1 (中圈) - 修正：3點鐘方向再往右轉2次
+                    { types: ['L','L','Y','T'], sol: [1, 1, 1, 2], offset: 0 }, 
                     // L2 (最內圈) - 9點左1, 6點右2
                     { types: ['Y','L','T','T'], sol: [0, 3, 1, 0], offset: 0 }  
                 ],
                 targets: ['Center', 'L0_TR', 'L0_BL'], 
-                // 完美還原：只移除最內圈左下角(L2_BL)，把最外圈右下角(L0_BR)補回來了
                 removeSegs: ['L2_BL'] 
             },
             2: {
