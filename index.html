@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -88,15 +87,12 @@
             1: {
                 layers: 3, time: 60,
                 data: [
-                    // L0 (最外圈): 12點T, 3點T, 6點L, 9點T
-                    // 解答：L0_T(倒T=0), L0_L(卜=1)
-                    // Offset 2 -> 讓 L0_T 初始為 2(正T，阻斷上方)，需點擊2次。
-                    { types: ['T','T','L','T'], sol: [0, 3, 3, 1], offset: 2 }, 
-                    // L1 (中圈): 12點L, 3點L, 6點Y, 9點T
-                    { types: ['L','L','Y','T'], sol: [3, 0, 0, 3], offset: 1 }, 
-                    // L2 (最內圈): 12點Y, 3點L, 6點T, 9點T
-                    // 解答：L2_B(卜=1) 負責點亮中心
-                    { types: ['Y','L','T','T'], sol: [1, 2, 1, 1], offset: 1 }  
+                    // L0 (最外圈)
+                    { types: ['T','T','L','T'], sol: [0, 3, 0, 1], offset: 2 }, 
+                    // L1 (中圈)
+                    { types: ['L','L','Y','T'], sol: [0, 2, 1, 2], offset: 1 }, 
+                    // L2 (最內圈)
+                    { types: ['Y','L','T','T'], sol: [0, 3, 1, 2], offset: 3 }  
                 ],
                 targets: ['Center', 'L0_TR', 'L0_BL'],
                 removeSegs: ['L2_BL'] // 物理抹除最內圈左下角
@@ -497,4 +493,5 @@
     </script>
 </body>
 </html>
+
 
