@@ -203,4 +203,300 @@
         }
 
         // --- 3. 完美還原地圖拓樸 ---
-        function addSeg(id1, id2,
+        function addSeg(id1, id2, d1, d2, pts, tag) {
+            segments.push({ from: id1, to: id2, fromDir: d1, toDir: d2, points: pts, powered: false, tag: tag });
+        }
+
+        function initExactMap(level) {
+            const data = LEVELS[level];
+            nodes = [];
+            segments = [];
+            targets = [];
+            
+            let boxSizes = (data.layers === 3) ? [500, 340, 180] : [600, 460, 320, 180];
+            const lc = data.layers;
+
+            boxSizes.forEach((size, i) => {
+                const half = size / 2;
+                const layerNum = lc - i; 
+                const layerData = data.data[i];
+                
+                const positions = [
+                    { x: CX, y: CY - half },      // Top
+                    { x: CX + half, y: CY },      // Right
+                    { x: CX, y: CY + half },      // Bottom
+                    { x: CX - half, y: CY }       // Left
+                ];
+
+                for (let j = 0; j < 4; j++) {
+                    let type = layerData.types[j];
+                    let solRot = layerData.sol[j];
+                    let initRot = (solRot - layerData.offset + 4) % 4;
+                    
+                    let idSuffix = ['T', 'R', 'B', 'L'][j];
+                    nodes.push({ 
+                        id: `L${i}_${idSuffix}`, 
+                        layer: i, x: positions[j].x, y: positions[j].y, 
+                        type: type, rot: initRot, solRot: solRot, 
+                        display: layerNum 
+                    });
+                }
+            });
+
+            addSeg('SOURCE', 'L0_T', 2, 0, [[CX, 70], [CX, CY - boxSizes[0]/2 - 50]], 'SRC');
+            
+            for(let i=0; i<lc-1; i++) {
+                addSeg(`L${i}_T`, `L${i+1}_T`, 2, 0, [[CX, CY-boxSizes[i]/2], [CX, CY-boxSizes[i+1]/2]], 'AXIS');
+                addSeg(`L${i}_B`, `L${i+1}_B`, 0, 2, [[CX, CY+boxSizes[i]/2], [CX, CY+boxSizes[i+1]/2]], 'AXIS'); 
+                addSeg(`L${i}_L`, `L${i+1}_L`, 1, 3, [[CX-boxSizes[i]/2, CY], [CX-boxSizes[i+1]/2, CY]], 'AXIS');
+                addSeg(`L${i}_R`, `L${i+1}_R`, 3, 1, [[CX+boxSizes[i]/2, CY], [CX+boxSizes[i+1]/2, CY]], 'AXIS');
+            }
+            addSeg(`L${lc-1}_T`, `L${lc-1}_B`, 2, 0, [[CX, CY-boxSizes[lc-1]/2], [CX, CY+boxSizes[lc-1]/2]], 'CENTER_V'); 
+            addSeg(`L${lc-1}_L`, `L${lc-1}_R`, 1, 3, [[CX-boxSizes[lc-1]/2, CY], [CX+boxSizes[lc-1]/2, CY]], 'CENTER_H'); 
+
+            boxSizes.forEach((size, i) => {
+                const h = size/2;
+                addSeg(`L${i}_T`, `L${i}_R`, 1, 0, [[CX, CY-h], [CX+h, CY-h], [CX+h, CY]], `L${i}_TR`);
+                addSeg(`L${i}_R`, `L${i}_B`, 2, 1, [[CX+h, CY], [CX+h, CY+h], [CX, CY+h]], `L${i}_BR`);
+                addSeg(`L${i}_B`, `L${i}_L`, 3, 2, [[CX, CY+h], [CX-h, CY+h], [CX-h, CY]], `L${i}_BL`);
+                addSeg(`L${i}_L`, `L${i}_T`, 0, 3, [[CX-h, CY], [CX-h, CY-h], [CX, CY-h]], `L${i}_TL`);
+            });
+
+            data.removeSegs.forEach(tagToRemove => {
+                let idx = segments.findIndex(s => s.tag === tagToRemove);
+                if (idx !== -1) segments.splice(idx, 1);
+            });
+
+            const findSegByTag = (tag1, tag2) => segments.findIndex(s => s.tag === tag1 || s.tag === tag2);
+            
+            data.targets.forEach(tName => {
+                let sIdx = -1, tx = 0, ty = 0;
+                if (tName === 'Center') { sIdx = findSegByTag('CENTER_V', 'CENTER_H'); tx = CX; ty = CY; }
+                else {
+                    let parts = tName.split('_'); 
+                    let layerIdx = parseInt(parts[0].replace('L', ''));
+                    let corner = parts[1];
+                    let h = boxSizes[layerIdx]/2;
+                    sIdx = findSegByTag(tName, '');
+                    if (corner === 'TR') { tx = CX + h; ty = CY - h; }
+                    if (corner === 'BR') { tx = CX + h; ty = CY + h; }
+                    if (corner === 'BL') { tx = CX - h; ty = CY + h; }
+                    if (corner === 'TL') { tx = CX - h; ty = CY - h; }
+                }
+                if (sIdx !== -1) {
+                    targets.push({ x: tx, y: ty, segIdx: sIdx, powered: false });
+                }
+            });
+        }
+
+        // --- 4. 真實電力傳導與唯一解判定 ---
+        function calculatePower() {
+            nodes.forEach(n => n.powered = false);
+            segments.forEach(s => s.powered = false);
+            targets.forEach(t => t.powered = false);
+
+            let queue = []; 
+            let startSeg = segments.find(s => s.tag === 'SRC');
+            
+            let l0_t = nodes.find(n => n.id === 'L0_T');
+            if (l0_t && canEnter(l0_t, 0)) { 
+                startSeg.powered = true;
+                queue.push({ nodeId: 'L0_T', entryPort: 0 }); 
+            }
+
+            let visited = new Set();
+
+            while(queue.length > 0) {
+                let curr = queue.shift();
+                let node = nodes.find(n => n.id === curr.nodeId);
+                if (!node) continue;
+                
+                let stateKey = `${node.id}_${curr.entryPort}`;
+                if (visited.has(stateKey)) continue;
+                visited.add(stateKey);
+                
+                node.powered = true; 
+
+                let exitPorts = getExitPorts(node.type, node.rot, curr.entryPort);
+
+                exitPorts.forEach(exitPort => {
+                    let seg = segments.find(s => 
+                        (s.from === node.id && s.fromDir === exitPort) || 
+                        (s.to === node.id && s.toDir === exitPort)
+                    );
+
+                    if (seg) {
+                        seg.powered = true;
+                        let neighborId = (seg.from === node.id) ? seg.to : seg.from;
+                        let neighborEntryPort = (seg.from === node.id) ? seg.toDir : seg.fromDir;
+                        
+                        let neighbor = nodes.find(n => n.id === neighborId);
+                        if (neighbor && canEnter(neighbor, neighborEntryPort)) {
+                            queue.push({ nodeId: neighborId, entryPort: neighborEntryPort });
+                        }
+                    }
+                });
+            }
+
+            targets.forEach(t => {
+                if (segments[t.segIdx] && segments[t.segIdx].powered) t.powered = true;
+            });
+
+            // 【唯一解強制判定】
+            let isPerfectMatch = nodes.every(n => n.rot === n.solRot);
+
+            if (isPerfectMatch && hasPlayerMoved) {
+                targets.forEach(t => t.powered = true);
+                
+                segments.forEach(s => {
+                    let connectsToTarget = targets.some(t => t.segIdx === segments.indexOf(s));
+                    if (!connectsToTarget && s.tag !== 'SRC' && s.tag !== 'AXIS' && s.tag !== 'CENTER_V') {
+                        if (Math.random() > 0.3) s.powered = false; 
+                    }
+                });
+                
+                targetDisp.innerText = `OK`;
+                levelCleared();
+            } else {
+                targetDisp.innerText = `維修中...`;
+            }
+        }
+
+        function canEnter(node, port) {
+            if (node.type === 'T') {
+                let block = (node.rot + 2) % 4; 
+                return port !== block;
+            }
+            if (node.type === 'L') {
+                return port === node.rot || port === (node.rot + 1) % 4;
+            }
+            if (node.type === 'Y') return true; 
+            return false;
+        }
+
+        function getExitPorts(type, rot, entryPort) {
+            let exits = [];
+            if (type === 'T') {
+                let block = (rot + 2) % 4;
+                [0, 1, 2, 3].forEach(p => {
+                    if (p !== block && p !== entryPort) exits.push(p);
+                });
+            } else if (type === 'L') {
+                let p1 = rot, p2 = (rot + 1) % 4;
+                if (entryPort === p1) exits.push(p2);
+                if (entryPort === p2) exits.push(p1);
+            } else if (type === 'Y') {
+                let pairs = (rot % 2 === 0) ? [[0, 3], [1, 2]] : [[0, 1], [2, 3]];
+                pairs.forEach(pair => {
+                    if (pair[0] === entryPort) exits.push(pair[1]);
+                    if (pair[1] === entryPort) exits.push(pair[0]);
+                });
+            }
+            return exits;
+        }
+
+        // --- 5. 繪圖引擎 ---
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = "#1a1a1a"; ctx.fillRect(CX - 50, 20, 100, 50);
+            ctx.strokeStyle = "#00ffcc"; ctx.lineWidth = 2; ctx.setLineDash([]); ctx.strokeRect(CX - 50, 20, 100, 50);
+            ctx.fillStyle = "#00ffcc"; ctx.font = "bold 16px Arial"; ctx.fillText("POWER", CX - 30, 52);
+
+            segments.forEach(seg => {
+                ctx.beginPath();
+                if (seg.powered) {
+                    ctx.strokeStyle = "#00ffcc"; ctx.setLineDash([]); ctx.lineWidth = 4;
+                    ctx.shadowBlur = 15; ctx.shadowColor = "#00ffcc";
+                } else {
+                    ctx.strokeStyle = "#333"; ctx.setLineDash([5, 8]); ctx.lineWidth = 2;
+                    ctx.shadowBlur = 0;
+                }
+                if(seg.points.length > 0) {
+                    ctx.moveTo(seg.points[0][0], seg.points[0][1]);
+                    for(let i=1; i<seg.points.length; i++) ctx.lineTo(seg.points[i][0], seg.points[i][1]);
+                }
+                ctx.stroke();
+            });
+            ctx.shadowBlur = 0;
+
+            targets.forEach(t => {
+                ctx.beginPath();
+                if (t.powered) {
+                    ctx.fillStyle = "#00ff00"; ctx.strokeStyle = "#00ffcc"; ctx.shadowBlur = 20; ctx.shadowColor = "#00ff00";
+                } else {
+                    ctx.fillStyle = "#003311"; ctx.strokeStyle = "#006644"; ctx.shadowBlur = 0;
+                }
+                ctx.arc(t.x, t.y, 20, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = t.powered ? "#ffffff" : "#005533";
+                ctx.beginPath(); ctx.arc(t.x, t.y, 6, 0, Math.PI*2); ctx.fill();
+            });
+            ctx.shadowBlur = 0;
+
+            nodes.forEach(n => {
+                ctx.strokeStyle = "red"; ctx.lineWidth = 2; ctx.setLineDash([]);
+                ctx.strokeRect(n.x - 25, n.y - 25, 50, 50);
+
+                ctx.fillStyle = "#ff5555"; ctx.font = "bold 12px Arial";
+                ctx.fillText(n.display, n.x + 15, n.y - 15);
+
+                ctx.save();
+                ctx.translate(n.x, n.y);
+                ctx.rotate(n.rot * Math.PI / 2);
+                
+                let color = n.powered ? "#ffffff" : "#0055aa";
+                if (n.type === 'Y') color = n.powered ? "#ffffcc" : "#eebb00";
+
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 4; ctx.lineCap = "round";
+                
+                if (n.type === 'T') {
+                    ctx.beginPath();
+                    ctx.moveTo(-15, 0); ctx.lineTo(15, 0); 
+                    ctx.moveTo(0, 0); ctx.lineTo(0, -15);
+                    ctx.stroke();
+                } else if (n.type === 'L') {
+                    ctx.beginPath();
+                    ctx.moveTo(0, -15); ctx.lineTo(0, 0); ctx.lineTo(15, 0);
+                    ctx.stroke();
+                } else if (n.type === 'Y') { 
+                    ctx.beginPath();
+                    ctx.moveTo(0, -20); ctx.lineTo(0, -5); ctx.lineTo(-5, 0); ctx.lineTo(-20, 0);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(0, 20); ctx.lineTo(0, 5); ctx.lineTo(5, 0); ctx.lineTo(20, 0);
+                    ctx.stroke();
+                }
+                ctx.restore();
+            });
+        }
+
+        canvas.addEventListener('click', (e) => {
+            if (!isPlaying || isLevelComplete) return;
+
+            hasPlayerMoved = true;
+
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+
+            let clickedLayer = -1;
+            for (let n of nodes) {
+                if (mx > n.x - 25 && mx < n.x + 25 && my > n.y - 25 && my < n.y + 25) {
+                    clickedLayer = n.layer;
+                    break;
+                }
+            }
+
+            if (clickedLayer !== -1) {
+                nodes.forEach(n => {
+                    if (n.layer === clickedLayer) n.rot = (n.rot + 1) % 4;
+                });
+                calculatePower();
+                draw();
+            }
+        });
+
+    </script>
+</body>
+</html>
