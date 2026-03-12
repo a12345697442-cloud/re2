@@ -86,16 +86,17 @@
             1: {
                 layers: 3, time: 60,
                 data: [
-                    // L0 (最外圈) - 修正：3點鐘方向往左轉兩次 (由 1 變為 3)，開口朝上、下、左，正確接入內圈！
+                    // L0 (最外圈)
                     { types: ['T','T','L','T'], sol: [1, 3, 0, 1], offset: 0 }, 
                     // L1 (中圈)
                     { types: ['L','L','Y','T'], sol: [1, 1, 1, 2], offset: 0 }, 
-                    // L2 (最內圈)
-                    { types: ['Y','L','T','T'], sol: [0, 1, 1, 0], offset: 0 }  
+                    // L2 (最內圈) - 修正：3點鐘L型向左轉1次 (由 1 變為 0，成為 └ 狀)
+                    { types: ['Y','L','T','T'], sol: [0, 0, 1, 0], offset: 0 }  
                 ],
                 // 目標：正中央、最外圈左下角、中圈右上角
                 targets: ['Center', 'L1_TR', 'L0_BL'], 
-                removeSegs: ['AXIS_1_2_B', 'L2_BL'] 
+                // 修正：確實補回了 6 點鐘的跨圈連線，只移除內圈左下角
+                removeSegs: ['L2_BL'] 
             },
             2: {
                 layers: 3, time: 90,
@@ -240,7 +241,7 @@
             
             for(let i=0; i<lc-1; i++) {
                 addSeg(`L${i}_T`, `L${i+1}_T`, 2, 0, [[CX, CY-boxSizes[i]/2], [CX, CY-boxSizes[i+1]/2]], 'AXIS');
-                addSeg(`L${i}_B`, `L${i+1}_B`, 0, 2, [[CX, CY+boxSizes[i]/2], [CX, CY+boxSizes[i+1]/2]], `AXIS_${i}_${i+1}_B`); 
+                addSeg(`L${i}_B`, `L${i+1}_B`, 0, 2, [[CX, CY+boxSizes[i]/2], [CX, CY+boxSizes[i+1]/2]], 'AXIS'); // 這裡已經補回 6 點鐘的跨圈軸心線
                 addSeg(`L${i}_L`, `L${i+1}_L`, 1, 3, [[CX-boxSizes[i]/2, CY], [CX-boxSizes[i+1]/2, CY]], 'AXIS');
                 addSeg(`L${i}_R`, `L${i+1}_R`, 3, 1, [[CX+boxSizes[i]/2, CY], [CX+boxSizes[i+1]/2, CY]], 'AXIS');
             }
@@ -260,7 +261,7 @@
                 if (idx !== -1) segments.splice(idx, 1);
             });
 
-            // 物理引擎核心：將目標角落的連線物理切斷，使電力撞擊目標後自然終止，絕不向右漏電！
+            // 物理引擎核心：將目標角落的連線物理切斷，使電力撞擊目標後自然終止
             data.targets.forEach(tName => {
                 let tx = 0, ty = 0;
                 if (tName === 'Center') {
@@ -282,13 +283,12 @@
                     let sIdx = segments.findIndex(s => s.tag === tName);
                     if (sIdx !== -1) {
                         let seg = segments[sIdx];
-                        segments.splice(sIdx, 1); // 拔除一整條轉角線
+                        segments.splice(sIdx, 1); 
                         
                         let ptStart = seg.points[0];
                         let ptCorner = seg.points[1];
                         let ptEnd = seg.points[2];
 
-                        // 拆分為兩條不互通的短線，各自接觸到目標即停止，不漏電！
                         segments.push({
                             from: seg.from, to: 'NONE', fromDir: seg.fromDir, toDir: 0, 
                             points: [ptStart, ptCorner], powered: false, tag: tName + '_A'
@@ -312,7 +312,6 @@
             let startSeg = segments.find(s => s.tag === 'SRC');
             
             let l0_t = nodes.find(n => n.id === 'L0_T');
-            // 電力從源頭進入 L0_T 的頂部(port 0)
             if (l0_t && canEnter(l0_t, 0) && startSeg) { 
                 startSeg.powered = true;
                 queue.push({ nodeId: 'L0_T', entryPort: 0 }); 
@@ -325,14 +324,12 @@
                 let node = nodes.find(n => n.id === curr.nodeId);
                 if (!node) continue;
                 
-                // 每個節點的每個進入方向獨立計算，防止 Y 型電路互相干擾
                 let stateKey = `${node.id}_${curr.entryPort}`;
                 if (visited.has(stateKey)) continue;
                 visited.add(stateKey);
                 
                 node.powered = true; 
 
-                // 嚴格依賴 getExitPorts 來取得出口（Y型符號在此確保絕不交叉串線）
                 let exitPorts = getExitPorts(node.type, node.rot, curr.entryPort);
 
                 exitPorts.forEach(exitPort => {
@@ -354,7 +351,6 @@
                 });
             }
 
-            // 判斷目標是否接收到電力
             targets.forEach(t => {
                 if (t.name === 'Center') {
                     let cSeg = segments.find(s => s.tag === 'CENTER_V');
@@ -362,14 +358,12 @@
                 } else {
                     let segA = segments.find(s => s.tag === t.name + '_A');
                     let segB = segments.find(s => s.tag === t.name + '_B');
-                    // 只要任一側線路通電撞上目標，目標即亮起，吸收電力。
                     if ((segA && segA.powered) || (segB && segB.powered)) {
                         t.powered = true;
                     }
                 }
             });
 
-            // 唯一解過關判定
             let isPerfectMatch = nodes.every(n => n.rot === n.solRot);
 
             if (isPerfectMatch && hasPlayerMoved) {
@@ -380,7 +374,6 @@
             }
         }
 
-        // 判斷節點端口是否開放
         function canEnter(node, port) {
             if (node.type === 'T') {
                 let blockedPort = (node.rot + 2) % 4; 
@@ -393,7 +386,6 @@
             return false;
         }
 
-        // Y型符號不交叉的靈魂運算式
         function getExitPorts(type, rot, entryPort) {
             let exits = [];
             if (type === 'T') {
@@ -406,7 +398,6 @@
                 if (entryPort === p1) exits.push(p2);
                 if (entryPort === p2) exits.push(p1);
             } else if (type === 'Y') {
-                // 嚴格配對：[0,3]上左 / [1,2]右下，絕不漏電，遵守不交叉傳導原則！
                 let pairs = (rot % 2 === 0) ? [[0, 3], [1, 2]] : [[0, 1], [2, 3]];
                 pairs.forEach(pair => {
                     if (pair[0] === entryPort) exits.push(pair[1]);
