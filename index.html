@@ -82,44 +82,20 @@
         let targets = [];
 
         // --- 1. 100% 忠於圖片的唯一解資料庫 ---
-        // 角度定義: 
-        // Type T (藍色): 0=┴, 1=├, 2=┬, 3=┤
-        // Type L (黃色): 0=└, 1=┌, 2=┐, 3=┘
-        // Type Y (紅色): 0=左上右下交叉, 1=右上左下交叉
-      const LEVELS = {
-  LEVELS = {
-    1: {
-        layers: 3, time: 60,
-        data: [
-            // L0 (最外圈) - 順時針：頂、右、底、左
-            // 頂:T(開口下左右), 右:T(左上下), 底:T(上左右), 左:T(右上下)
-            { 
-                types: ['T','T','T','T'], 
-                sol: [2, 3, 0, 1], 
-                offset: 0 // <--- 設為 0 會直接顯示正解
-            }, 
-            
-            // L1 (中圈)
-            // 頂:L(右下), 右:L(左下), 底:T(上左右), 左:T(上右下)
-            { 
-                types: ['L','L','T','T'], 
-                sol: [1, 2, 0, 1], 
-                offset: 0 
-            }, 
-            
-            // L2 (最內圈)
-            // 頂:Y(紅), 右:L(左下), 底:L(右上), 左:T(右上下)
-            { 
-                types: ['Y','L','L','T'], 
-                sol: [0, 2, 0, 1], 
-                offset: 0 
-            }  
-        ],
-        targets: ['Center', 'L0_TR', 'L0_BL'], // 圓圈位置
-        removeSegs: [] 
-    },
-    // ... 其他關卡
-};
+        const LEVELS = {
+            1: {
+                layers: 3, time: 60,
+                data: [
+                    // L0 (最外圈)
+                    { types: ['T','T','L','T'], sol: [0, 1, 0, 1], offset: 0 }, 
+                    // L1 (中圈)
+                    { types: ['L','L','T','T'], sol: [2, 3, 2, 1], offset: 0 }, 
+                    // L2 (最內圈)
+                    { types: ['Y','T','Y','T'], sol: [0, 3, 1, 1], offset: 0 }  
+                ],
+                targets: ['Center', 'L0_TR', 'L0_BL'], 
+                removeSegs: ['L2_BL'] 
+            },
             2: {
                 layers: 3, time: 90,
                 data: [
@@ -162,7 +138,8 @@
             
             isPlaying = true;
             isLevelComplete = false;
-            hasPlayerMoved = false;
+            // 為了測試方便，如果 offset 為 0，我們假裝玩家已經動過，這樣一進去就會直接判斷通關
+            hasPlayerMoved = data.data.every(layer => layer.offset === 0) ? true : false;
 
             initExactMap(level);
             
@@ -268,8 +245,9 @@
                 addSeg(`L${i}_R`, `L${i+1}_R`, 3, 1, [[CX+boxSizes[i]/2, CY], [CX+boxSizes[i+1]/2, CY]], 'AXIS');
             }
             
-            // 修正：中心只保留垂直線 (CENTER_V)，徹底移除水平線 (CENTER_H)
+            // 修正：中心必須同時保留垂直與水平線
             addSeg(`L${lc-1}_T`, `L${lc-1}_B`, 2, 0, [[CX, CY-boxSizes[lc-1]/2], [CX, CY+boxSizes[lc-1]/2]], 'CENTER_V'); 
+            addSeg(`L${lc-1}_L`, `L${lc-1}_R`, 1, 3, [[CX-boxSizes[lc-1]/2, CY], [CX+boxSizes[lc-1]/2, CY]], 'CENTER_H'); 
 
             boxSizes.forEach((size, i) => {
                 const h = size/2;
@@ -288,8 +266,8 @@
             
             data.targets.forEach(tName => {
                 let sIdx = -1, tx = 0, ty = 0;
-                // 修正：尋找中心點時，只依賴 CENTER_V
-                if (tName === 'Center') { sIdx = findSegByTag('CENTER_V', 'CENTER_V'); tx = CX; ty = CY; }
+                // 修正：尋找中心點時，讓它能認可垂直或水平任一條供電
+                if (tName === 'Center') { sIdx = findSegByTag('CENTER_V', 'CENTER_H'); tx = CX; ty = CY; }
                 else {
                     let parts = tName.split('_'); 
                     let layerIdx = parseInt(parts[0].replace('L', ''));
@@ -317,7 +295,7 @@
             let startSeg = segments.find(s => s.tag === 'SRC');
             
             let l0_t = nodes.find(n => n.id === 'L0_T');
-            if (l0_t && canEnter(l0_t, 0)) { 
+            if (l0_t && canEnter(l0_t, 0) && startSeg) { 
                 startSeg.powered = true;
                 queue.push({ nodeId: 'L0_T', entryPort: 0 }); 
             }
@@ -368,7 +346,7 @@
                 
                 segments.forEach(s => {
                     let connectsToTarget = targets.some(t => t.segIdx === segments.indexOf(s));
-                    if (!connectsToTarget && s.tag !== 'SRC' && s.tag !== 'AXIS' && s.tag !== 'CENTER_V') {
+                    if (!connectsToTarget && s.tag !== 'SRC' && s.tag !== 'AXIS' && s.tag !== 'CENTER_V' && s.tag !== 'CENTER_H') {
                         if (Math.random() > 0.3) s.powered = false; 
                     }
                 });
@@ -380,21 +358,17 @@
             }
         }
 
-       function canEnter(node, port) {
-    if (node.type === 'T') {
-        // T 型：0=┴, 1=├, 2=┬, 3=┤
-        // 如果 rot=0 (┴)，封閉端在下方 (port 2)，所以只要 port 不是 2 就能進入
-        let blockedPort = (node.rot + 2) % 4; 
-        return port !== blockedPort;
-    }
-    if (node.type === 'L') {
-        // L 型：0=└, 1=┌, 2=┐, 3=┘
-        // 如果 rot=0 (└)，開口在 0(上) 和 1(右)
-        return port === node.rot || port === (node.rot + 1) % 4;
-    }
-    if (node.type === 'Y') return true; // Y 型通常四向通
-    return false;
-}
+        function canEnter(node, port) {
+            if (node.type === 'T') {
+                let blockedPort = (node.rot + 2) % 4; 
+                return port !== blockedPort;
+            }
+            if (node.type === 'L') {
+                return port === node.rot || port === (node.rot + 1) % 4;
+            }
+            if (node.type === 'Y') return true;
+            return false;
+        }
 
         function getExitPorts(type, rot, entryPort) {
             let exits = [];
@@ -522,6 +496,3 @@
     </script>
 </body>
 </html>
-
-
-
