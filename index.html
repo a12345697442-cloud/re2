@@ -94,7 +94,8 @@
                     { types: ['Y','L','T','T'], sol: [0, 3, 1, 0], offset: 0 }  
                 ],
                 targets: ['Center', 'L0_TR', 'L0_BL'], 
-                removeSegs: ['L2_BL', 'L0_BR'] 
+                // 修正：確實將 L0_BR 從移除名單中刪除，讓最外圈右下角線路回歸
+                removeSegs: ['L2_BL'] 
             },
             2: {
                 layers: 3, time: 90,
