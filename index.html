@@ -86,16 +86,15 @@
             1: {
                 layers: 3, time: 60,
                 data: [
-                    // L0 (最外圈) - 已鎖定正解
-                    { types: ['T','T','L','T'], sol: [1, 1, 0, 1], offset: 0 }, 
-                    // L1 (中圈) - 已鎖定正解
+                    // L0 (最外圈) - 修正：3點鐘方向往左轉兩次 (由 1 變為 3)，開口朝上、下、左，正確接入內圈！
+                    { types: ['T','T','L','T'], sol: [1, 3, 0, 1], offset: 0 }, 
+                    // L1 (中圈)
                     { types: ['L','L','Y','T'], sol: [1, 1, 1, 2], offset: 0 }, 
-                    // L2 (最內圈) - 修正：3點鐘L型角度調整為 1 (左上開口)
+                    // L2 (最內圈)
                     { types: ['Y','L','T','T'], sol: [0, 1, 1, 0], offset: 0 }  
                 ],
                 // 目標：正中央、最外圈左下角、中圈右上角
                 targets: ['Center', 'L1_TR', 'L0_BL'], 
-                // 完美還原：移除中圈底部與內圈頂部的連線，保留最外圈右下角線路，移除內圈左下角
                 removeSegs: ['AXIS_1_2_B', 'L2_BL'] 
             },
             2: {
@@ -140,8 +139,6 @@
             
             isPlaying = true;
             isLevelComplete = false;
-            // 如果offset是0，代表一打開就是正解，不需要玩家移動。為了確認解答狀態，我把它設為true。
-            // 在正式版本中，請記得將 data 裡的 offset 改為亂數，這行保持原有邏輯即可。
             hasPlayerMoved = data.data.every(layer => layer.offset === 0) ? true : false;
 
             initExactMap(level);
@@ -243,7 +240,7 @@
             
             for(let i=0; i<lc-1; i++) {
                 addSeg(`L${i}_T`, `L${i+1}_T`, 2, 0, [[CX, CY-boxSizes[i]/2], [CX, CY-boxSizes[i+1]/2]], 'AXIS');
-                addSeg(`L${i}_B`, `L${i+1}_B`, 0, 2, [[CX, CY+boxSizes[i]/2], [CX, CY+boxSizes[i+1]/2]], `AXIS_${i}_${i+1}_B`); // 新增tag方便移除
+                addSeg(`L${i}_B`, `L${i+1}_B`, 0, 2, [[CX, CY+boxSizes[i]/2], [CX, CY+boxSizes[i+1]/2]], `AXIS_${i}_${i+1}_B`); 
                 addSeg(`L${i}_L`, `L${i+1}_L`, 1, 3, [[CX-boxSizes[i]/2, CY], [CX-boxSizes[i+1]/2, CY]], 'AXIS');
                 addSeg(`L${i}_R`, `L${i+1}_R`, 3, 1, [[CX+boxSizes[i]/2, CY], [CX+boxSizes[i+1]/2, CY]], 'AXIS');
             }
@@ -375,7 +372,6 @@
             // 唯一解過關判定
             let isPerfectMatch = nodes.every(n => n.rot === n.solRot);
 
-            // 【重點修正】：徹底拔除原本的隨機斷電亂碼，保證視覺上呈現真實物理路徑
             if (isPerfectMatch && hasPlayerMoved) {
                 targetDisp.innerText = `OK`;
                 levelCleared();
