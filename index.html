@@ -88,21 +88,22 @@
         // Type Y (紅色): 0=左上右下交叉, 1=右上左下交叉
       const LEVELS = {
     1: {
-        layers: 3, time: 60,
-        data: [
-            // L0 (最外圈): T(頂), T(右), L(底), T(左)
-            // 目標：頂部開口朝上接電源
-            { types: ['T','T','L','T'], sol: [2, 3, 1, 1], offset: 2 }, 
-            // L1 (中圈): L, L, T, T
-            { types: ['L','L','T','T'], sol: [0, 3, 2, 1], offset: 1 }, 
-            // L2 (最內圈): Y, L, Y, T
-            { types: ['Y','L','Y','T'], sol: [1, 2, 0, 0], offset: 2 }  
-        ],
-        targets: ['Center', 'L0_TR', 'L0_BL'],
-        removeSegs: [] 
-    },
-    // Level 2 & 3 可依此類推修正...
-};
+    layers: 3, time: 60,
+    data: [
+        // L0 (最外圈 - 藍色 T 型為主)
+        // [頂, 右, 底, 左] -> 6點鐘(底)的 T 型必須開口朝上/左/右 (rot: 0)
+        { types: ['T','T','T','T'], sol: [0, 3, 0, 1], offset: 1 }, 
+        
+        // L1 (中圈 - 黃色 L 型為主)
+        // [頂, 右, 底, 左] -> 6點鐘(底)的 L 型必須接通左右或上下
+        { types: ['L','L','L','L'], sol: [2, 3, 1, 0], offset: 2 }, 
+        
+        // L2 (最內圈)
+        { types: ['Y','L','Y','T'], sol: [0, 1, 1, 3], offset: 3 }  
+    ],
+    targets: ['Center', 'L0_TR', 'L0_BL'],
+    removeSegs: [] 
+},
             2: {
                 layers: 3, time: 90,
                 data: [
@@ -505,4 +506,5 @@
     </script>
 </body>
 </html>
+
 
