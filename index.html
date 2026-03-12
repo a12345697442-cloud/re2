@@ -1,9 +1,8 @@
-
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>電路維修專家 - 唯一解鎖定版</title>
+    <title>電路維修專家 - 100% 圖片完美還原版</title>
     <style>
         body { background: #050505; color: #eee; text-align: center; font-family: 'Segoe UI', sans-serif; margin: 0; overflow: hidden; }
         
@@ -52,7 +51,7 @@
         <p id="overlay-desc">
             歡迎來到電力中樞。<br>
             <strong>Level 1 啟動。</strong><br>
-            <span style="color:#ffff00">提示：入口必須為「倒T」，最左側為「卜型」。找對方向即可通電。</span>
+            <span style="color:#ffff00">系統提示：已載入唯一解答。入口需為倒T，左側需為卜型。</span>
         </p>
         <button id="overlay-btn" onclick="startGame()">開始挑戰</button>
     </div>
@@ -90,13 +89,13 @@
                 data: [
                     // L0 (最外圈): 12點T, 3點T, 6點L, 9點T
                     // 解答：L0_T(倒T=0), L0_L(卜=1)
-                    // Offset 2 -> 讓 L0_T 初始為 2(正T，阻斷上方)，需點擊2次。
-                    { types: ['T','T','L','T'], sol: [0, 3, 3, 1], offset: 2 }, 
+                    // Offset 2 -> 讓 L0_T 初始為 2(正T，阻斷上方)，需點擊 2 次。
+                    { types: ['T','T','L','T'], sol: [0, 3, 0, 1], offset: 2 }, 
                     // L1 (中圈): 12點L, 3點L, 6點Y, 9點T
-                    { types: ['L','L','Y','T'], sol: [3, 0, 0, 3], offset: 1 }, 
+                    { types: ['L','L','Y','T'], sol: [0, 1, 1, 2], offset: 1 }, 
                     // L2 (最內圈): 12點Y, 3點L, 6點T, 9點T
                     // 解答：L2_B(卜=1) 負責點亮中心
-                    { types: ['Y','L','T','T'], sol: [1, 2, 1, 1], offset: 1 }  
+                    { types: ['Y','L','T','T'], sol: [0, 2, 1, 2], offset: 1 }  
                 ],
                 targets: ['Center', 'L0_TR', 'L0_BL'],
                 removeSegs: ['L2_BL'] // 物理抹除最內圈左下角
@@ -104,20 +103,20 @@
             2: {
                 layers: 3, time: 90,
                 data: [
-                    { types: ['T','T','T','T'], sol: [1, 3, 0, 1], offset: 2 }, 
-                    { types: ['T','L','T','L'], sol: [1, 0, 1, 2], offset: 1 }, 
-                    { types: ['T','T','L','L'], sol: [1, 1, 0, 2], offset: 2 }  
+                    { types: ['T','T','L','T'], sol: [0, 3, 0, 1], offset: 2 }, 
+                    { types: ['L','L','L','T'], sol: [0, 3, 1, 2], offset: 1 }, 
+                    { types: ['L','T','L','L'], sol: [0, 0, 0, 0], offset: 2 }  
                 ],
-                targets: ['Center', 'L0_TR', 'L0_BL', 'L1_TR'],
+                targets: ['Center', 'L0_TR', 'L1_TL', 'L0_BR'],
                 removeSegs: []
             },
             3: {
                 layers: 4, time: 120,
                 data: [
-                    { types: ['T','T','T','T'], sol: [1, 3, 0, 1], offset: 2 }, 
-                    { types: ['T','T','T','Y'], sol: [1, 3, 0, 1], offset: 3 }, 
-                    { types: ['T','Y','T','T'], sol: [1, 0, 0, 1], offset: 2 }, 
-                    { types: ['T','L','Y','L'], sol: [1, 1, 0, 3], offset: 3 }  
+                    { types: ['T','T','T','T'], sol: [1, 3, 0, 1], offset: 3 }, 
+                    { types: ['T','T','T','Y'], sol: [1, 3, 0, 1], offset: 2 }, 
+                    { types: ['T','Y','T','T'], sol: [1, 0, 0, 1], offset: 3 }, 
+                    { types: ['T','L','Y','L'], sol: [1, 1, 0, 3], offset: 2 }  
                 ],
                 targets: ['Center', 'L0_TR', 'L0_BL', 'L1_TL', 'L2_BR'],
                 removeSegs: []
@@ -259,6 +258,7 @@
                 addSeg(`L${i}_L`, `L${i}_T`, 0, 3, [[CX-h, CY], [CX-h, CY-h], [CX, CY-h]], `L${i}_TL`);
             });
 
+            // 物理刪除特定線段
             data.removeSegs.forEach(tagToRemove => {
                 let idx = segments.findIndex(s => s.tag === tagToRemove);
                 if (idx !== -1) segments.splice(idx, 1);
@@ -343,10 +343,8 @@
             let isPerfectMatch = nodes.every(n => n.rot === n.solRot);
 
             if (isPerfectMatch && hasPlayerMoved) {
-                // 強制點亮所有解答路徑
                 targets.forEach(t => t.powered = true);
                 
-                // 保留圖片的虛線氛圍
                 segments.forEach(s => {
                     let connectsToTarget = targets.some(t => t.segIdx === segments.indexOf(s));
                     if (!connectsToTarget && s.tag !== 'SRC' && s.tag !== 'AXIS' && s.tag !== 'CENTER_V') {
@@ -357,8 +355,6 @@
                 targetDisp.innerText = `OK`;
                 levelCleared();
             } else {
-                // 計算當前發光的目標數 (純視覺回饋)
-                let litCount = targets.filter(t => t.powered).length;
                 targetDisp.innerText = `維修中...`;
             }
         }
