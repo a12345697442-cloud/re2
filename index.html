@@ -81,7 +81,7 @@
         let segments = [];
         let targets = [];
 
-// --- 1. 100% 忠於圖片的唯一解資料庫 ---
+        // --- 1. 100% 忠於圖片的唯一解資料庫 ---
         // 角度定義: 
         // Type T (藍色): 0=┴, 1=├, 2=┬, 3=┤
         // Type L (黃色): 0=└, 1=┌, 2=┐, 3=┘
@@ -91,18 +91,12 @@
                 layers: 3, time: 60,
                 data: [
                     // L0 (最外圈)
-                    // Top: ┴(0), Right: ┤(3), Bottom: ┘(3), Left: ├(1)
                     { types: ['T','T','L','T'], sol: [0, 3, 3, 1], offset: 2 }, 
-                    
                     // L1 (中圈)
-                    // Top: ┐(2), Right: ┐(2), Bottom: ├(1), Left: ┴(0)
                     { types: ['L','L','T','T'], sol: [2, 2, 1, 0], offset: 1 }, 
-                    
                     // L2 (最內圈)
-                    // Top: Y(1), Right: ┌(1), Bottom: Y(1), Left: ┤(3)
                     { types: ['Y','L','Y','T'], sol: [1, 1, 1, 3], offset: 2 }  
                 ],
-                // 目標點：中心、最外圈右上、最外圈左下
                 targets: ['Center', 'L0_TR', 'L0_BL'],
                 removeSegs: [] 
             },
@@ -209,7 +203,7 @@
             segments.push({ from: id1, to: id2, fromDir: d1, toDir: d2, points: pts, powered: false, tag: tag });
         }
 
-   function initExactMap(level) {
+        function initExactMap(level) {
             const data = LEVELS[level];
             nodes = [];
             segments = [];
@@ -253,6 +247,7 @@
                 addSeg(`L${i}_L`, `L${i+1}_L`, 1, 3, [[CX-boxSizes[i]/2, CY], [CX-boxSizes[i+1]/2, CY]], 'AXIS');
                 addSeg(`L${i}_R`, `L${i+1}_R`, 3, 1, [[CX+boxSizes[i]/2, CY], [CX+boxSizes[i+1]/2, CY]], 'AXIS');
             }
+            
             // 修正：中心只保留垂直線 (CENTER_V)，徹底移除水平線 (CENTER_H)
             addSeg(`L${lc-1}_T`, `L${lc-1}_B`, 2, 0, [[CX, CY-boxSizes[lc-1]/2], [CX, CY+boxSizes[lc-1]/2]], 'CENTER_V'); 
 
@@ -275,52 +270,6 @@
                 let sIdx = -1, tx = 0, ty = 0;
                 // 修正：尋找中心點時，只依賴 CENTER_V
                 if (tName === 'Center') { sIdx = findSegByTag('CENTER_V', 'CENTER_V'); tx = CX; ty = CY; }
-                else {
-                    let parts = tName.split('_'); 
-                    let layerIdx = parseInt(parts[0].replace('L', ''));
-                    let corner = parts[1];
-                    let h = boxSizes[layerIdx]/2;
-                    sIdx = findSegByTag(tName, '');
-                    if (corner === 'TR') { tx = CX + h; ty = CY - h; }
-                    if (corner === 'BR') { tx = CX + h; ty = CY + h; }
-                    if (corner === 'BL') { tx = CX - h; ty = CY + h; }
-                    if (corner === 'TL') { tx = CX - h; ty = CY - h; }
-                }
-                if (sIdx !== -1) {
-                    targets.push({ x: tx, y: ty, segIdx: sIdx, powered: false });
-                }
-            });
-        }
-
-            addSeg('SOURCE', 'L0_T', 2, 0, [[CX, 70], [CX, CY - boxSizes[0]/2 - 50]], 'SRC');
-            
-            for(let i=0; i<lc-1; i++) {
-                addSeg(`L${i}_T`, `L${i+1}_T`, 2, 0, [[CX, CY-boxSizes[i]/2], [CX, CY-boxSizes[i+1]/2]], 'AXIS');
-                addSeg(`L${i}_B`, `L${i+1}_B`, 0, 2, [[CX, CY+boxSizes[i]/2], [CX, CY+boxSizes[i+1]/2]], 'AXIS'); 
-                addSeg(`L${i}_L`, `L${i+1}_L`, 1, 3, [[CX-boxSizes[i]/2, CY], [CX-boxSizes[i+1]/2, CY]], 'AXIS');
-                addSeg(`L${i}_R`, `L${i+1}_R`, 3, 1, [[CX+boxSizes[i]/2, CY], [CX+boxSizes[i+1]/2, CY]], 'AXIS');
-            }
-            addSeg(`L${lc-1}_T`, `L${lc-1}_B`, 2, 0, [[CX, CY-boxSizes[lc-1]/2], [CX, CY+boxSizes[lc-1]/2]], 'CENTER_V'); 
-            addSeg(`L${lc-1}_L`, `L${lc-1}_R`, 1, 3, [[CX-boxSizes[lc-1]/2, CY], [CX+boxSizes[lc-1]/2, CY]], 'CENTER_H'); 
-
-            boxSizes.forEach((size, i) => {
-                const h = size/2;
-                addSeg(`L${i}_T`, `L${i}_R`, 1, 0, [[CX, CY-h], [CX+h, CY-h], [CX+h, CY]], `L${i}_TR`);
-                addSeg(`L${i}_R`, `L${i}_B`, 2, 1, [[CX+h, CY], [CX+h, CY+h], [CX, CY+h]], `L${i}_BR`);
-                addSeg(`L${i}_B`, `L${i}_L`, 3, 2, [[CX, CY+h], [CX-h, CY+h], [CX-h, CY]], `L${i}_BL`);
-                addSeg(`L${i}_L`, `L${i}_T`, 0, 3, [[CX-h, CY], [CX-h, CY-h], [CX, CY-h]], `L${i}_TL`);
-            });
-
-            data.removeSegs.forEach(tagToRemove => {
-                let idx = segments.findIndex(s => s.tag === tagToRemove);
-                if (idx !== -1) segments.splice(idx, 1);
-            });
-
-            const findSegByTag = (tag1, tag2) => segments.findIndex(s => s.tag === tag1 || s.tag === tag2);
-            
-            data.targets.forEach(tName => {
-                let sIdx = -1, tx = 0, ty = 0;
-                if (tName === 'Center') { sIdx = findSegByTag('CENTER_V', 'CENTER_H'); tx = CX; ty = CY; }
                 else {
                     let parts = tName.split('_'); 
                     let layerIdx = parseInt(parts[0].replace('L', ''));
@@ -549,7 +498,3 @@
     </script>
 </body>
 </html>
-
-
-
-
