@@ -51,7 +51,7 @@
         <p id="overlay-desc">
             歡迎來到電力中樞。<br>
             <strong>Level 2 啟動。</strong><br>
-            <span style="color:#ffff00">系統提示：此為 Level 2 解答確認模式。</span>
+            <span style="color:#ffff00">系統提示：此為 Level 2 完美解答確認模式。</span>
         </p>
         <button id="overlay-btn" onclick="startGame()">確認連線</button>
     </div>
@@ -70,7 +70,7 @@
         const CX = 400; 
         const CY = 480; 
 
-        // 直接從第二關開始測試
+        // 預設從第二關開始測試
         let currentLevel = 2; 
         let timeLeft = 90;
         let timerInterval = null;
@@ -97,19 +97,19 @@
             2: {
                 layers: 4, time: 90,
                 data: [
-                    // L0 (最外圈) - 設定為能順利傳導左、右大外環的角度
-                    { types: ['T','L','L','T'], sol: [0, 2, 0, 1], offset: 0 }, 
-                    // L1 (第二圈) - 12點改為L，3點改為T
-                    { types: ['L','T','T','T'], sol: [1, 0, 2, 2], offset: 0 }, 
-                    // L2 (第三圈) - 3點改為T，6點改為Y
-                    { types: ['T','T','Y','T'], sol: [2, 3, 0, 2], offset: 0 }, 
-                    // L3 (最內圈)
-                    { types: ['T','L','L','T'], sol: [2, 0, 0, 3], offset: 0 }  
+                    // L0 (第一圈/最外圈)
+                    { types: ['T','L','L','T'], sol: [1, 3, 0, 1], offset: 0 }, 
+                    // L1 (第二圈) - 更新符號: 12點=L, 3點=Y, 6點=T
+                    { types: ['L','Y','T','T'], sol: [3, 0, 0, 0], offset: 0 }, 
+                    // L2 (第三圈) - 更新符號: 9點=L, 6點=Y
+                    { types: ['T','T','Y','L'], sol: [2, 0, 1, 3], offset: 0 }, 
+                    // L3 (第四圈/最內圈) - 更新符號: 6點=T
+                    { types: ['T','L','T','T'], sol: [3, 1, 0, 1], offset: 0 }  
                 ],
-                // 5 個精準目標：正中心、L0右上、L1右上、L0左下、L2左下
+                // 5個精準目標定位
                 targets: ['Center', 'L0_TR', 'L1_TR', 'L0_BL', 'L2_BL'],
-                // 完美還原：L1 和 L2 之間的頂部軸心線斷開 (12點鐘方向斷橋)
-                removeSegs: ['AXIS_1_2_T']
+                // 完美還原：L1 和 L2 之間的頂部軸心線斷開 (12點鐘斷橋)，以及 L1 左下角連線移除
+                removeSegs: ['AXIS_1_2_T', 'L1_BL']
             },
             3: {
                 layers: 4, time: 120,
@@ -266,7 +266,7 @@
                 if (idx !== -1) segments.splice(idx, 1);
             });
 
-            // 物理引擎核心：將目標角落的連線物理切斷，使電力撞擊目標後自然終止！
+            // 物理引擎核心：將目標角落的連線物理切斷，使電力撞擊目標後自然終止
             data.targets.forEach(tName => {
                 let tx = 0, ty = 0;
                 if (tName === 'Center') {
@@ -367,7 +367,6 @@
                 } else {
                     let segA = segments.find(s => s.tag === t.name + '_A');
                     let segB = segments.find(s => s.tag === t.name + '_B');
-                    // 因為物理線被切斷，只要碰到目標，目標就亮起，同時電力也就停在這裡了
                     if ((segA && segA.powered) || (segB && segB.powered)) {
                         t.powered = true;
                     }
@@ -408,7 +407,6 @@
                 if (entryPort === p1) exits.push(p2);
                 if (entryPort === p2) exits.push(p1);
             } else if (type === 'Y') {
-                // 嚴格配對：[0,3]上左 / [1,2]右下，絕不漏電
                 let pairs = (rot % 2 === 0) ? [[0, 3], [1, 2]] : [[0, 1], [2, 3]];
                 pairs.forEach(pair => {
                     if (pair[0] === entryPort) exits.push(pair[1]);
