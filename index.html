@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>電路維修專家 - Level 2 完美正解版</title>
+    <title>電路維修專家 - Level 2 魔王正解版</title>
     <style>
         body { background: #050505; color: #eee; text-align: center; font-family: 'Segoe UI', sans-serif; margin: 0; overflow: hidden; }
         
@@ -50,10 +50,10 @@
         <h1 id="overlay-title">電路維修專家</h1>
         <p id="overlay-desc">
             歡迎來到電力中樞。<br>
-            <strong>Level 2 啟動。</strong><br>
-            <span style="color:#ffff00">系統提示：此為 Level 2 完美解答確認模式。</span>
+            <strong>Level 2 魔王關卡啟動。</strong><br>
+            <span style="color:#ffff00">系統提示：此為 Level 2 解答確認模式。</span>
         </p>
-        <button id="overlay-btn" onclick="startGame()">確認連線</button>
+        <button id="overlay-btn" onclick="startGame()">確認完美連線</button>
     </div>
 
     <script>
@@ -70,8 +70,7 @@
         const CX = 400; 
         const CY = 480; 
 
-        // 預設從第二關開始測試
-        let currentLevel = 2; 
+        let currentLevel = 2; // 預設直接進入第二關
         let timeLeft = 90;
         let timerInterval = null;
         let isPlaying = false;
@@ -97,19 +96,22 @@
             2: {
                 layers: 4, time: 90,
                 data: [
-                    // L0 (第一圈/最外圈)
-                    { types: ['T','L','L','T'], sol: [1, 3, 0, 1], offset: 0 }, 
-                    // L1 (第二圈) - 更新符號: 12點=L, 3點=Y, 6點=T
-                    { types: ['L','Y','T','T'], sol: [3, 0, 0, 0], offset: 0 }, 
-                    // L2 (第三圈) - 更新符號: 9點=L, 6點=Y
-                    { types: ['T','T','Y','L'], sol: [2, 0, 1, 3], offset: 0 }, 
-                    // L3 (第四圈/最內圈) - 更新符號: 6點=T
-                    { types: ['T','L','T','T'], sol: [3, 1, 0, 1], offset: 0 }  
+                    // 第四圈 (最外圈, L0)：修正 6點鐘方向為 T
+                    { types: ['T','L','T','T'], sol: [2, 2, 0, 1], offset: 0 }, 
+                    
+                    // 第三圈 (L1)：修正 9點為 L, 6點為 Y
+                    { types: ['L','Y','Y','L'], sol: [0, 1, 1, 0], offset: 0 }, 
+                    
+                    // 第二圈 (L2)：修正 12點為 L, 3點為 Y, 6點為 T
+                    { types: ['L','Y','T','T'], sol: [1, 1, 0, 1], offset: 0 }, 
+                    
+                    // 第一圈 (最裡圈, L3)：對應 2.jpg 的配置
+                    { types: ['T','T','L','L'], sol: [2, 3, 1, 0], offset: 0 }  
                 ],
-                // 5個精準目標定位
-                targets: ['Center', 'L0_TR', 'L1_TR', 'L0_BL', 'L2_BL'],
-                // 完美還原：L1 和 L2 之間的頂部軸心線斷開 (12點鐘斷橋)，以及 L1 左下角連線移除
-                removeSegs: ['AXIS_1_2_T', 'L1_BL']
+                // 5 個精準電源目標定位：中心, 最外右上, 第二圈右上, 最外左下, 第三圈左下
+                targets: ['Center', 'L0_TR', 'L2_TR', 'L0_BL', 'L1_BL'],
+                // 完美還原：L1 和 L2 之間的頂部軸心線斷開，並移除第二圈(L2)左下角路徑
+                removeSegs: ['AXIS_1_2_T', 'L2_BL']
             },
             3: {
                 layers: 4, time: 120,
@@ -252,6 +254,8 @@
             let cHalf = boxSizes[lc-1] / 2;
             addSeg(`L${lc-1}_T`, 'NONE', 2, 0, [[CX, CY-cHalf], [CX, CY]], 'CENTER_V_A');
             addSeg(`L${lc-1}_B`, 'NONE', 0, 0, [[CX, CY+cHalf], [CX, CY]], 'CENTER_V_B');
+            addSeg(`L${lc-1}_L`, 'NONE', 1, 0, [[CX-cHalf, CY], [CX, CY]], 'CENTER_H_A');
+            addSeg(`L${lc-1}_R`, 'NONE', 3, 0, [[CX+cHalf, CY], [CX, CY]], 'CENTER_H_B');
 
             boxSizes.forEach((size, i) => {
                 const h = size/2;
@@ -266,7 +270,7 @@
                 if (idx !== -1) segments.splice(idx, 1);
             });
 
-            // 物理引擎核心：將目標角落的連線物理切斷，使電力撞擊目標後自然終止
+            // 物理引擎核心：將目標角落的連線物理切斷，使電力撞擊目標後自然終止，絕不漏電！
             data.targets.forEach(tName => {
                 let tx = 0, ty = 0;
                 if (tName === 'Center') {
@@ -294,7 +298,6 @@
                         let ptCorner = seg.points[1];
                         let ptEnd = seg.points[2];
 
-                        // 拆分為兩條不互通的短線，各自接觸到目標即停止
                         segments.push({
                             from: seg.from, to: 'NONE', fromDir: seg.fromDir, toDir: 0, 
                             points: [ptStart, ptCorner], powered: false, tag: tName + '_A'
@@ -357,13 +360,14 @@
                 });
             }
 
+            // 目標接收判斷
             targets.forEach(t => {
                 if (t.name === 'Center') {
-                    let segA = segments.find(s => s.tag === 'CENTER_V_A');
-                    let segB = segments.find(s => s.tag === 'CENTER_V_B');
-                    if ((segA && segA.powered) || (segB && segB.powered)) {
-                        t.powered = true;
-                    }
+                    let segs = ['CENTER_V_A', 'CENTER_V_B', 'CENTER_H_A', 'CENTER_H_B'];
+                    segs.forEach(tg => {
+                        let s = segments.find(seg => seg.tag === tg);
+                        if (s && s.powered) t.powered = true;
+                    });
                 } else {
                     let segA = segments.find(s => s.tag === t.name + '_A');
                     let segB = segments.find(s => s.tag === t.name + '_B');
@@ -407,6 +411,7 @@
                 if (entryPort === p1) exits.push(p2);
                 if (entryPort === p2) exits.push(p1);
             } else if (type === 'Y') {
+                // 嚴格配對：[0,3]上左 / [1,2]右下，絕不漏電，遵守不交叉傳導原則！
                 let pairs = (rot % 2 === 0) ? [[0, 3], [1, 2]] : [[0, 1], [2, 3]];
                 pairs.forEach(pair => {
                     if (pair[0] === entryPort) exits.push(pair[1]);
