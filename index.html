@@ -4,7 +4,13 @@
     <meta charset="UTF-8">
     <title>電路維修專家 - 線路點對點真實通電版</title>
     <style>
-        body { background: #050505; color: #eee; text-align: center; font-family: 'Segoe UI', sans-serif; margin: 0; overflow: hidden; }
+        @font-face {
+            font-family: 'RE4Font';
+            src: url('resident_evil_4_remake_font_by_snakeyboy_df7kacs.ttf'); 
+        }
+
+        body { background: #050505; color: #eee; text-align: center; font-family: 'RE4Font', 'Segoe UI', sans-serif; margin: 0; overflow: hidden; text-transform: uppercase; }
+
         
         #ui-bar { 
             position: absolute; top: 0; left: 0; width: 100%; height: 60px; 
@@ -41,19 +47,17 @@
     <div id="ui-bar">
         <div class="stat-box">LEVEL <span id="level-disp" class="stat-value">1 / 3</span></div>
         <div class="stat-box">TIME <span id="time-disp" class="stat-value">∞</span></div>
-        <div class="stat-box">STATUS <span id="target-disp" class="stat-value">維修中</span></div>
+        <div class="stat-box">STATUS <span id="targetDisp.innerText = `WORKING...`;
     </div>
 
     <canvas id="gameCanvas" width="800" height="850"></canvas>
 
-    <div id="overlay">
-        <h1 id="overlay-title">電路維修專家</h1>
-        <p id="overlay-desc">
-            歡迎來到電力中樞。<br>
-            <strong>Level 1 啟動。</strong><br>
-            <span style="color:#ffff00">系統提示：此為解答確認模式，點擊開始檢視真實物理電力流向。</span>
+<div id="overlay">
+        <h1 id="overlay-title">CIRCUIT PUZZLE</h1>
+        <p id="overlay-desc" style="font-style: italic; color: #ccc;">
+            "Come now, stranger... let's start this game."
         </p>
-        <button id="overlay-btn" onclick="startGame()">確認連線</button>
+        <button id="overlay-btn" onclick="startGame()">START</button>
     </div>
 
     <script>
@@ -157,7 +161,7 @@
             timeDisp.innerText = "∞";
             timeDisp.className = "stat-value";
             
-            targetDisp.innerText = `維修中...`;
+            targetDisp.innerText = `WORKING...`;
             targetDisp.style.color = "#fff";
             
             isPlaying = true;
@@ -171,25 +175,34 @@
         }
 
         function levelCleared() {
+            function claimReward() {
+            // 顯示最終結尾
+            showOverlay("GAME CLEARED", '"Come back anytime..."', "RESTART", startGame);
+        }
+            
             isLevelComplete = true;
             targetDisp.style.color = "#00ff00";
-            targetDisp.innerText = "連線成功!";
+            targetDisp.innerText = "CONNECTED!";
             
-            let msg = `Level ${currentLevel} 完成！<br>電路已完美接通。`;
-            let btn = "前往下一關";
+            let msg = "";
+            let btn = "NEXT LEVEL";
             let action = nextLevel;
 
-            if (currentLevel >= 3) {
-                msg = "恭喜！全數關卡已修復完成。<br>您是真正的電路大師。";
-                btn = "重新開始";
-                action = startGame;
+            // 依據關卡設定商人台詞
+            if (currentLevel === 1) {
+                msg = '"Not bad, stranger..."';
+            } else if (currentLevel === 2) {
+                msg = '"You\'ve got some skills..."';
+            } else if (currentLevel >= 3) {
+                msg = '"INCREDIBLE! Claim your reward, stranger..."';
+                btn = "CONFIRM";
+                action = claimReward; // 第三大關過關後，按鈕導向領取獎勵的畫面
             }
             
             setTimeout(() => {
-                showOverlay("系統恢復", msg, btn, action);
+                showOverlay("STAGE CLEARED", msg, btn, action);
             }, 500);
         }
-
         function nextLevel() {
             currentLevel++;
             startLevel(currentLevel);
@@ -541,4 +554,5 @@ let initRot = (solRot - currentOffset + 4) % 4;
     </script>
 </body>
 </html>
+
 
