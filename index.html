@@ -162,7 +162,7 @@
             
             isPlaying = true;
             isLevelComplete = false;
-            hasPlayerMoved = data.data.every(layer => layer.offset === 0) ? true : false;
+            hasPlayerMoved = false;
 
             initExactMap(level);
             
@@ -216,6 +216,17 @@
             
             let boxSizes = (data.layers === 3) ? [500, 340, 180] : [600, 460, 320, 180];
             const lc = data.layers;
+            let randomOffsets = [];
+let isAllSolved = true;
+// 確保隨機打亂的結果不會剛好全都是 0 (直接通關)
+while (isAllSolved) {
+    randomOffsets = [];
+    for (let k = 0; k < lc; k++) {
+        let r = Math.floor(Math.random() * 4); // 產生 0~3 的隨機數
+        randomOffsets.push(r);
+        if (r !== 0) isAllSolved = false;
+    }
+}
 
             boxSizes.forEach((size, i) => {
                 const half = size / 2;
@@ -232,7 +243,8 @@
                 for (let j = 0; j < 4; j++) {
                     let type = layerData.types[j];
                     let solRot = layerData.sol[j];
-                    let initRot = (solRot - layerData.offset + 4) % 4;
+                    let currentOffset = randomOffsets[i]; // 抓取剛剛生成的隨機打亂數
+let initRot = (solRot - currentOffset + 4) % 4;
                     
                     let idSuffix = ['T', 'R', 'B', 'L'][j];
                     nodes.push({ 
@@ -529,3 +541,4 @@
     </script>
 </body>
 </html>
+
