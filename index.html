@@ -70,7 +70,7 @@
         const CX = 400; 
         const CY = 480; 
 
-        // 預設從第二關開始測試
+        // 直接從第二關開始測試
         let currentLevel = 2; 
         let timeLeft = 90;
         let timerInterval = null;
@@ -97,18 +97,18 @@
             2: {
                 layers: 4, time: 90,
                 data: [
-                    // L0 (最外圈)
-                    { types: ['T','L','L','T'], sol: [1, 3, 3, 1], offset: 0 }, 
-                    // L1 (第二圈)
-                    { types: ['L','Y','T','L'], sol: [0, 0, 1, 1], offset: 0 }, 
-                    // L2 (第三圈)
-                    { types: ['Y','T','T','T'], sol: [1, 1, 2, 1], offset: 0 }, 
+                    // L0 (最外圈) - 設定為能順利傳導左、右大外環的角度
+                    { types: ['T','L','L','T'], sol: [0, 2, 0, 1], offset: 0 }, 
+                    // L1 (第二圈) - 12點改為L，3點改為T
+                    { types: ['L','T','T','T'], sol: [1, 0, 2, 2], offset: 0 }, 
+                    // L2 (第三圈) - 3點改為T，6點改為Y
+                    { types: ['T','T','Y','T'], sol: [2, 3, 0, 2], offset: 0 }, 
                     // L3 (最內圈)
-                    { types: ['T','L','L','T'], sol: [2, 3, 3, 3], offset: 0 }  
+                    { types: ['T','L','L','T'], sol: [2, 0, 0, 3], offset: 0 }  
                 ],
-                // 5個精準目標定位
+                // 5 個精準目標：正中心、L0右上、L1右上、L0左下、L2左下
                 targets: ['Center', 'L0_TR', 'L1_TR', 'L0_BL', 'L2_BL'],
-                // 完美還原：L1 和 L2 之間的頂部軸心線是斷開的
+                // 完美還原：L1 和 L2 之間的頂部軸心線斷開 (12點鐘方向斷橋)
                 removeSegs: ['AXIS_1_2_T']
             },
             3: {
@@ -198,7 +198,7 @@
             overlay.style.display = 'flex';
         }
 
-        // --- 3. 完美還原地圖拓樸 (恢復連續物理線段，由節點決定阻斷) ---
+        // --- 3. 完美還原地圖拓樸 (包含吸收器設計) ---
         function addSeg(id1, id2, d1, d2, pts, tag) {
             segments.push({ from: id1, to: id2, fromDir: d1, toDir: d2, points: pts, powered: false, tag: tag });
         }
@@ -248,9 +248,10 @@
                 addSeg(`L${i}_R`, `L${i+1}_R`, 3, 1, [[CX+boxSizes[i]/2, CY], [CX+boxSizes[i+1]/2, CY]], `AXIS_${i}_${i+1}_R`);
             }
             
-            // 十字中心連通
-            addSeg(`L${lc-1}_T`, `L${lc-1}_B`, 2, 0, [[CX, CY-boxSizes[lc-1]/2], [CX, CY+boxSizes[lc-1]/2]], 'CENTER_V'); 
-            addSeg(`L${lc-1}_L`, `L${lc-1}_R`, 1, 3, [[CX-boxSizes[lc-1]/2, CY], [CX+boxSizes[lc-1]/2, CY]], 'CENTER_H');
+            // 中心也設定為吸收器 (上下不互穿)
+            let cHalf = boxSizes[lc-1] / 2;
+            addSeg(`L${lc-1}_T`, 'NONE', 2, 0, [[CX, CY-cHalf], [CX, CY]], 'CENTER_V_A');
+            addSeg(`L${lc-1}_B`, 'NONE', 0, 0, [[CX, CY+cHalf], [CX, CY]], 'CENTER_V_B');
 
             boxSizes.forEach((size, i) => {
                 const h = size/2;
@@ -265,11 +266,12 @@
                 if (idx !== -1) segments.splice(idx, 1);
             });
 
-            // 目標定位點
+            // 物理引擎核心：將目標角落的連線物理切斷，使電力撞擊目標後自然終止！
             data.targets.forEach(tName => {
                 let tx = 0, ty = 0;
                 if (tName === 'Center') {
                     tx = CX; ty = CY;
+                    targets.push({ name: tName, x: tx, y: ty, powered: false });
                 } else {
                     let parts = tName.split('_'); 
                     let layerIdx = parseInt(parts[0].replace('L', ''));
@@ -280,8 +282,29 @@
                     if (corner === 'BR') { tx = CX + h; ty = CY + h; }
                     if (corner === 'BL') { tx = CX - h; ty = CY + h; }
                     if (corner === 'TL') { tx = CX - h; ty = CY - h; }
+                    
+                    targets.push({ name: tName, x: tx, y: ty, powered: false });
+
+                    let sIdx = segments.findIndex(s => s.tag === tName);
+                    if (sIdx !== -1) {
+                        let seg = segments[sIdx];
+                        segments.splice(sIdx, 1); 
+                        
+                        let ptStart = seg.points[0];
+                        let ptCorner = seg.points[1];
+                        let ptEnd = seg.points[2];
+
+                        // 拆分為兩條不互通的短線，各自接觸到目標即停止
+                        segments.push({
+                            from: seg.from, to: 'NONE', fromDir: seg.fromDir, toDir: 0, 
+                            points: [ptStart, ptCorner], powered: false, tag: tName + '_A'
+                        });
+                        segments.push({
+                            from: seg.to, to: 'NONE', fromDir: seg.toDir, toDir: 0, 
+                            points: [ptEnd, ptCorner], powered: false, tag: tName + '_B'
+                        });
+                    }
                 }
-                targets.push({ name: tName, x: tx, y: ty, powered: false });
             });
         }
 
@@ -334,15 +357,20 @@
                 });
             }
 
-            // 判斷目標是否在通電的線段上
             targets.forEach(t => {
                 if (t.name === 'Center') {
-                    let sv = segments.find(s => s.tag === 'CENTER_V');
-                    let sh = segments.find(s => s.tag === 'CENTER_H');
-                    if ((sv && sv.powered) || (sh && sh.powered)) t.powered = true;
+                    let segA = segments.find(s => s.tag === 'CENTER_V_A');
+                    let segB = segments.find(s => s.tag === 'CENTER_V_B');
+                    if ((segA && segA.powered) || (segB && segB.powered)) {
+                        t.powered = true;
+                    }
                 } else {
-                    let s = segments.find(seg => seg.tag === t.name);
-                    if (s && s.powered) t.powered = true;
+                    let segA = segments.find(s => s.tag === t.name + '_A');
+                    let segB = segments.find(s => s.tag === t.name + '_B');
+                    // 因為物理線被切斷，只要碰到目標，目標就亮起，同時電力也就停在這裡了
+                    if ((segA && segA.powered) || (segB && segB.powered)) {
+                        t.powered = true;
+                    }
                 }
             });
 
@@ -380,6 +408,7 @@
                 if (entryPort === p1) exits.push(p2);
                 if (entryPort === p2) exits.push(p1);
             } else if (type === 'Y') {
+                // 嚴格配對：[0,3]上左 / [1,2]右下，絕不漏電
                 let pairs = (rot % 2 === 0) ? [[0, 3], [1, 2]] : [[0, 1], [2, 3]];
                 pairs.forEach(pair => {
                     if (pair[0] === entryPort) exits.push(pair[1]);
@@ -494,5 +523,3 @@
     </script>
 </body>
 </html>
-
-
