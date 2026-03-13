@@ -5,11 +5,16 @@
     <title>Circuit Puzzle</title>
     <style>
         @font-face {
-         font-family: 'RE4Font';
-         src: url('resident_evil_4_remake_font_by_snakeyboy_df7kacs.ttf'); 
+            font-family: 'RE4Font';
+            src: url('resident_evil_4_remake_font_by_snakeyboy_df7kacs.ttf'); 
         }
 
-        body { background: #050505; color: #eee; text-align: center; font-family: 'RE4Font', 'Segoe UI', sans-serif; margin: 0; overflow: hidden; text-transform: uppercase; }
+
+         {
+            font-family: 'RE4Font', 'Segoe UI', sans-serif !important;
+        }
+
+        body { background: #050505; color: #eee; text-align: center; margin: 0; overflow: hidden; text-transform: uppercase; }
         
         #ui-bar { 
             position: absolute; top: 0; left: 0; width: 100%; height: 60px; 
@@ -27,7 +32,8 @@
             justify-content: center; align-items: center; z-index: 20;
             backdrop-filter: blur(5px);
         }
-        h1 { color: #00ffcc; font-size: 48px; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 5px; text-shadow: 0 0 20px #00ffcc; }
+        /* 稍微縮小字體並增加行高，讓商人的長句子不會超出螢幕 */
+        h1 { color: #00ffcc; font-size: 38px; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 3px; text-shadow: 0 0 20px #00ffcc; line-height: 1.4; max-width: 90%; }
         p { font-size: 18px; color: #aaa; margin-bottom: 30px; max-width: 600px; line-height: 1.6; }
         button {
             padding: 15px 40px; font-size: 24px; color: #000; background: #00ffcc;
@@ -51,11 +57,9 @@
 
     <canvas id="gameCanvas" width="800" height="850"></canvas>
 
-    <div id="overlay">
-     <h1 id="overlay-title">CIRCUIT PUZZLE</h1>
-        <p id="overlay-desc" style="font-style: italic; color: #ccc;">
-         "Come now, stranger... let's start this game."
-        </p>
+<div id="overlay">
+        <h1 id="overlay-title">"COME, STRANGER... LET'S START THIS GAME."</h1>
+        <p id="overlay-desc" style="font-style: italic; color: #ccc;"></p>
         <button id="overlay-btn" onclick="startGame()">START</button>
     </div>
 
@@ -173,33 +177,36 @@
             draw();
         }
 
-      function levelCleared() {
-        isLevelComplete = true;
-        targetDisp.style.color = "#00ff00";
-        targetDisp.innerText = "CONNECTED!";
-    
-        let msg = "";
-        let btn = "NEXT LEVEL";
-        let action = nextLevel;
+// 【商人對話與獎勵機制】
+        function levelCleared() {
+            isLevelComplete = true;
+            targetDisp.style.color = "#00ff00";
+            targetDisp.innerText = "CONNECTED!";
+            
+            let titleMsg = "";
+            let btn = "NEXT LEVEL";
+            let action = nextLevel;
 
-        if (currentLevel === 1) {
-        msg = '"Not bad, stranger..."';
-        } else if (currentLevel === 2) {
-        msg = '"You\'ve got some skills..."';
-        } else if (currentLevel >= 3) {
-        msg = '"Incredible! Claim your reward, stranger..."';
-        btn = "CONFIRM";
-        action = claimReward; // 導向獎勵
-         }
-        
-        setTimeout(() => {
-        showOverlay("STAGE CLEARED", msg, btn, action);
-         }, 500);
+            if (currentLevel === 1) {
+                titleMsg = '"NOT BAD, STRANGER..."';
+            } else if (currentLevel === 2) {
+                titleMsg = '"YOU\'VE GOT SOME SKILLS..."';
+            } else if (currentLevel >= 3) {
+                titleMsg = '"INCREDIBLE! CLAIM YOUR REWARD, STRANGER..."';
+                btn = "CONFIRM";
+                action = claimReward; // 導向獎勵
+            }
+            
+            setTimeout(() => {
+                // 將對話放在第一個參數 (h1)，第二個參數 (p) 留空
+                showOverlay(titleMsg, "", btn, action);
+            }, 500);
         }
 
         // 【新增領取獎勵結語】
         function claimReward() {
-        showOverlay("GAME CLEARED", '"Come back anytime..."', "RESTART", startGame);
+            // 同樣將對話放在第一個參數
+            showOverlay('"COME BACK ANYTIME..."', "", "RESTART", startGame);
         }
 
         function nextLevel() {
@@ -553,6 +560,7 @@ let initRot = (solRot - currentOffset + 4) % 4;
     </script>
 </body>
 </html>
+
 
 
 
