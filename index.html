@@ -96,21 +96,30 @@
             2: {
                 layers: 4, time: 90,
                 data: [
-                    { types: ['T','L','T','T'], sol: [2, 0, 0, 1], offset: 0 }, 
-                    { types: ['L','T','Y','L'], sol: [3, 0, 0, 0], offset: 0 }, 
-                    { types: ['L','Y','T','T'], sol: [2, 0, 0, 3], offset: 0 }, 
-                    { types: ['T','L','L','T'], sol: [0, 0, 0, 1], offset: 0 }  
+                    // 第四圈 (L0)：符號鎖死，12點左轉1次，9點右轉1次
+                    { types: ['T','L','T','T'], sol: [1, 0, 0, 2], offset: 0 }, 
+                    
+                    // 第三圈 (L1)：符號鎖死，12點右轉1，3點左轉1，6點右轉1，9點右轉1
+                    { types: ['L','T','Y','L'], sol: [0, 3, 1, 1], offset: 0 }, 
+                    
+                    // 第二圈 (L2)：符號鎖死，3點右轉1，6點右轉2
+                    { types: ['L','Y','T','T'], sol: [2, 1, 2, 3], offset: 0 }, 
+                    
+                    // 第一圈 (L3)：符號鎖死，12點右轉1，9點左轉1
+                    { types: ['T','L','T','T'], sol: [1, 0, 3, 0], offset: 0 }  
                 ],
+                // 目標精確定位
                 targets: ['Center', 'L0_TR', 'L2_TR', 'L0_BL', 'L2_BL'],
+                // 完美還原斷橋與末端吸收點
                 removeSegs: [
                     'AXIS_1_2_T', 
                     'AXIS_1_2_L', 
                     'AXIS_0_1_R', 
                     'AXIS_2_3_R', 
-                    'L2_BL_A',    // 第二圈左下角，右邊(接6點鐘)無路徑
-                    'L0_TR_B',    // 最外圈右上角，下方(接3點鐘)無路徑
-                    'CENTER_H_A', 
-                    'CENTER_H_B'  
+                    'L2_BL_A',    // 第二圈左下角，右邊無路徑
+                    'L0_TR_B',    // 最外圈右上角，下方無路徑
+                    'CENTER_H_A', // 中心左側無路徑
+                    'CENTER_H_B'  // 中心右側無路徑
                 ]
             },
             3: {
@@ -200,7 +209,7 @@
             overlay.style.display = 'flex';
         }
 
-        // --- 3. 完美還原地圖拓樸 (修復了移除線段的執行順序 Bug) ---
+        // --- 3. 完美還原地圖拓樸 ---
         function addSeg(id1, id2, d1, d2, pts, tag) {
             segments.push({ from: id1, to: id2, fromDir: d1, toDir: d2, points: pts, powered: false, tag: tag });
         }
@@ -305,7 +314,7 @@
                 }
             });
 
-            // 確保在這個階段執行移除，這樣 L0_TR_B 和 L2_BL_A 才會真正從畫面上消失！
+            // 確保在這個階段執行移除死胡同
             data.removeSegs.forEach(tagToRemove => {
                 let idx = segments.findIndex(s => s.tag === tagToRemove);
                 if (idx !== -1) segments.splice(idx, 1);
