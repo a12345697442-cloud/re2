@@ -2,19 +2,27 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>電路維修專家 - Level 3 完美正解版</title>
+    <title>電路維修專家 - 完整遊戲版</title>
     <style>
         body { background: #050505; color: #eee; text-align: center; font-family: 'Segoe UI', sans-serif; margin: 0; overflow: hidden; }
         
         #ui-bar { 
             position: absolute; top: 0; left: 0; width: 100%; height: 60px; 
             background: rgba(0, 20, 10, 0.9); border-bottom: 1px solid #00ffcc;
-            display: flex; justify-content: center; align-items: center; gap: 30px;
-            pointer-events: none; z-index: 10;
+            display: flex; justify-content: center; align-items: center; gap: 40px;
+            z-index: 10;
         }
         .stat-box { font-size: 20px; color: #00ffcc; text-shadow: 0 0 5px #00ffcc; font-weight: bold; }
         .stat-value { color: #fff; margin-left: 10px; }
-        .warning { color: #ff3333; animation: pulse 1s infinite; }
+        
+        /* 新增驗證按鈕樣式 */
+        #check-btn {
+            padding: 8px 25px; font-size: 18px; color: #000; background: #00ffcc;
+            border: none; border-radius: 5px; cursor: pointer; font-weight: bold;
+            box-shadow: 0 0 15px #00ffcc; transition: transform 0.2s, background 0.2s;
+        }
+        #check-btn:hover { transform: scale(1.05); background: #fff; }
+        #check-btn:active { transform: scale(0.95); }
 
         #overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -24,14 +32,12 @@
         }
         h1 { color: #00ffcc; font-size: 48px; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 5px; text-shadow: 0 0 20px #00ffcc; }
         p { font-size: 18px; color: #aaa; margin-bottom: 30px; max-width: 600px; line-height: 1.6; }
-        button {
+        .main-btn {
             padding: 15px 40px; font-size: 24px; color: #000; background: #00ffcc;
             border: none; border-radius: 5px; cursor: pointer; font-weight: bold;
             box-shadow: 0 0 15px #00ffcc; transition: transform 0.2s;
         }
-        button:hover { transform: scale(1.1); background: #fff; }
-        
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        .main-btn:hover { transform: scale(1.1); background: #fff; }
         
         canvas { background: #000; border: 2px solid #333; cursor: pointer; display: block; margin: 60px auto 0; box-shadow: 0 0 30px #001100; }
     </style>
@@ -39,9 +45,9 @@
 <body>
 
     <div id="ui-bar">
-        <div class="stat-box">LEVEL <span id="level-disp" class="stat-value">3 / 3</span></div>
-        <div class="stat-box">TIME <span id="time-disp" class="stat-value">120</span></div>
-        <div class="stat-box">STATUS <span id="target-disp" class="stat-value">維修中</span></div>
+        <div class="stat-box">LEVEL <span id="level-disp" class="stat-value">1 / 3</span></div>
+        <div class="stat-box">STATUS <span id="target-disp" class="stat-value">維修中...</span></div>
+        <button id="check-btn" onclick="verifyConnection()">驗證連線</button>
     </div>
 
     <canvas id="gameCanvas" width="800" height="850"></canvas>
@@ -50,17 +56,16 @@
         <h1 id="overlay-title">電路維修專家</h1>
         <p id="overlay-desc">
             歡迎來到電力中樞。<br>
-            <strong>Level 3 魔王關卡啟動。</strong><br>
-            <span style="color:#ffff00">系統提示：此為 Level 3 終極正解確認模式。</span>
+            全部三道魔王級電路皆已載入，線路已全面打亂。<br>
+            <span style="color:#ffff00">遊戲提示：完成拼圖後，請點擊上方的「驗證連線」進入下一關。無時間限制，請安心解謎。</span>
         </p>
-        <button id="overlay-btn" onclick="startGame()">確認完美連線</button>
+        <button class="main-btn" id="overlay-btn" onclick="startGame()">開始挑戰</button>
     </div>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const levelDisp = document.getElementById('level-disp');
-        const timeDisp = document.getElementById('time-disp');
         const targetDisp = document.getElementById('target-disp');
         const overlay = document.getElementById('overlay');
         const overlayTitle = document.getElementById('overlay-title');
@@ -70,131 +75,114 @@
         const CX = 400; 
         const CY = 480; 
 
-        let currentLevel = 3; // 預設測試第三關
-        let timeLeft = 120;
-        let timerInterval = null;
+        let currentLevel = 1; 
         let isPlaying = false;
         let isLevelComplete = false;
-        let hasPlayerMoved = false; 
         
         let nodes = [];
         let segments = [];
         let targets = [];
 
-        // --- 1. 唯一正解資料庫 ---
+        // --- 1. 三大關卡極致正解資料庫 (完全鎖死) ---
         const LEVELS = {
             1: {
-                layers: 3, time: 60,
+                layers: 3, 
                 data: [
-                    { types: ['T','T','L','T'], sol: [1, 3, 0, 1], offset: 1 }, 
-                    { types: ['L','L','Y','T'], sol: [1, 1, 1, 2], offset: 2 }, 
-                    { types: ['Y','L','T','T'], sol: [0, 1, 1, 0], offset: 3 }  
+                    { types: ['T','T','L','T'], sol: [1, 3, 0, 1] }, 
+                    { types: ['L','L','Y','T'], sol: [1, 1, 1, 2] }, 
+                    { types: ['Y','L','T','T'], sol: [0, 1, 1, 0] }  
                 ],
                 targets: ['Center', 'L1_TR', 'L0_BL'], 
                 removeSegs: ['AXIS_1_2_B', 'L2_BL'] 
             },
             2: {
-                layers: 4, time: 90,
+                layers: 4, 
                 data: [
-                    { types: ['T','L','T','T'], sol: [1, 0, 0, 2], offset: 0 }, 
-                    { types: ['L','T','Y','L'], sol: [0, 3, 1, 1], offset: 0 }, 
-                    { types: ['L','Y','T','T'], sol: [2, 1, 2, 3], offset: 0 }, 
-                    { types: ['T','L','L','T'], sol: [1, 0, 0, 0], offset: 0 }  
+                    { types: ['T','L','T','T'], sol: [1, 0, 0, 2] }, 
+                    { types: ['L','T','Y','L'], sol: [0, 3, 1, 1] }, 
+                    { types: ['L','Y','T','T'], sol: [2, 1, 2, 3] }, 
+                    { types: ['T','L','T','T'], sol: [1, 0, 3, 0] }  
                 ],
                 targets: ['Center', 'L0_TR', 'L2_TR', 'L0_BL', 'L2_BL'],
                 removeSegs: [
-                    'AXIS_1_2_T', 'AXIS_1_2_L', 'AXIS_0_1_R', 
+                    'AXIS_1_2_T', 'AXIS_1_2_L', 'AXIS_0_1_R', 'AXIS_2_3_R', 
                     'L2_BL_A', 'L0_TR_B', 'CENTER_H_A', 'CENTER_H_B'  
                 ]
             },
             3: {
-                layers: 4, time: 120,
+                layers: 4, 
                 data: [
-                    // L0 (最外圈/第四圈)
-                    { types: ['T','T','T','T'], sol: [3, 3, 1, 2], offset: 0 }, 
-                    
-                    // L1 (第三圈)
-                    { types: ['T','T','L','Y'], sol: [3, 0, 2, 0], offset: 0 }, 
-                    
-                    // L2 (第二圈)
-                    { types: ['T','Y','T','T'], sol: [0, 0, 3, 0], offset: 0 }, 
-                    
-                    // L3 (第一圈，最裡圈)：【精準修正】3點鐘(第二個數值)向右轉1次，從 0 變成 1
-                    { types: ['T','L','Y','T'], sol: [0, 1, 1, 3], offset: 0 }  
+                    { types: ['T','T','T','T'], sol: [3, 3, 1, 2] }, 
+                    { types: ['T','T','L','Y'], sol: [3, 0, 2, 0] }, 
+                    { types: ['T','Y','T','T'], sol: [0, 0, 3, 0] }, 
+                    { types: ['T','L','Y','T'], sol: [0, 1, 1, 3] }  
                 ],
-                // 目標與實體切斷黑名單完全鎖死
                 targets: ['Center', 'L0_TR', 'L0_BL', 'L1_TR', 'L2_BR', 'L3_TL'],
                 removeSegs: [
-                    'CENTER_H_A', 'CENTER_H_B', 
-                    'L0_TL', 'L2_BR_B'
+                    'CENTER_H_A', 'CENTER_H_B', 'L0_TL', 'L2_BR_B'
                 ]
             }
         };
 
         // --- 2. 遊戲控制 ---
         function startGame() {
+            currentLevel = 1;
             startLevel(currentLevel);
         }
 
         function startLevel(level) {
-            const data = LEVELS[level];
-
             overlay.style.display = 'none';
             levelDisp.innerText = `${level} / 3`;
-            timeLeft = data.time;
-            timeDisp.innerText = timeLeft;
-            timeDisp.className = "stat-value";
             targetDisp.innerText = `維修中...`;
             targetDisp.style.color = "#fff";
             
             isPlaying = true;
             isLevelComplete = false;
-            hasPlayerMoved = data.data.every(layer => layer.offset === 0) ? true : false;
 
-            initExactMap(level);
-            
+            initScrambledMap(level);
             calculatePower();
             draw();
-            
-            if (timerInterval) clearInterval(timerInterval);
-            timerInterval = setInterval(() => {
-                if (!isPlaying || isLevelComplete) return;
-                timeLeft--;
-                timeDisp.innerText = timeLeft;
-                if (timeLeft <= 10) timeDisp.className = "stat-value warning";
-                if (timeLeft <= 0) gameOver();
-            }, 1000);
         }
 
-        function levelCleared() {
-            isLevelComplete = true;
-            targetDisp.style.color = "#00ff00";
-            targetDisp.innerText = "連線成功!";
-            
-            let msg = `Level ${currentLevel} 完成！<br>電路已完美接通。<br>剩餘時間: ${timeLeft} 秒`;
-            let btn = "前往下一關";
-            let action = nextLevel;
+        // 手動點擊驗證過關
+        function verifyConnection() {
+            if (!isPlaying || isLevelComplete) return;
 
-            if (currentLevel >= 3) {
-                msg = "恭喜！全數關卡已修復完成。<br>您是真正的電路大師。";
-                btn = "重新開始";
-                action = () => { currentLevel = 1; startGame(); };
+            let isPerfectMatch = nodes.every(n => n.rot === n.solRot);
+
+            if (isPerfectMatch) {
+                isLevelComplete = true;
+                targetDisp.style.color = "#00ff00";
+                targetDisp.innerText = "完美連通！";
+                
+                let msg = `Level ${currentLevel} 解鎖成功！<br>電路已完美接通。`;
+                let btn = "前往下一關";
+                let action = nextLevel;
+
+                if (currentLevel >= 3) {
+                    msg = "🏆 恭喜通關 🏆<br>三道魔王級電路皆已修復！<br>您是真正的電路大師。";
+                    btn = "重新開始";
+                    action = () => { currentLevel = 1; startGame(); };
+                }
+                
+                setTimeout(() => {
+                    showOverlay("系統恢復", msg, btn, action);
+                }, 600);
+            } else {
+                targetDisp.innerText = "線路尚未完全接通！";
+                targetDisp.style.color = "#ff3333";
+                setTimeout(() => {
+                    if (!isLevelComplete) {
+                        targetDisp.innerText = "維修中...";
+                        targetDisp.style.color = "#fff";
+                    }
+                }, 1500);
             }
-            
-            setTimeout(() => {
-                showOverlay("系統恢復", msg, btn, action);
-            }, 500);
         }
 
         function nextLevel() {
             currentLevel++;
             startLevel(currentLevel);
-        }
-
-        function gameOver() {
-            isPlaying = false;
-            clearInterval(timerInterval);
-            showOverlay("電力中斷", `時間耗盡！Level ${currentLevel} 挑戰失敗。`, "重試本關", () => startLevel(currentLevel));
         }
 
         function showOverlay(title, desc, btnText, callback) {
@@ -205,12 +193,12 @@
             overlay.style.display = 'flex';
         }
 
-        // --- 3. 完美還原地圖拓樸 ---
+        // --- 3. 亂數生成地圖拓樸 ---
         function addSeg(id1, id2, d1, d2, pts, tag) {
             segments.push({ from: id1, to: id2, fromDir: d1, toDir: d2, points: pts, powered: false, tag: tag });
         }
 
-        function initExactMap(level) {
+        function initScrambledMap(level) {
             const data = LEVELS[level];
             nodes = [];
             segments = [];
@@ -234,7 +222,10 @@
                 for (let j = 0; j < 4; j++) {
                     let type = layerData.types[j];
                     let solRot = layerData.sol[j];
-                    let initRot = (solRot - layerData.offset + 4) % 4;
+                    
+                    // 【核心修改】亂數打亂！隨機加上 1, 2, 或 3 的偏移，保證一開始絕對不正確
+                    let randomOffset = Math.floor(Math.random() * 3) + 1;
+                    let initRot = (solRot + randomOffset) % 4;
                     
                     let idSuffix = ['T', 'R', 'B', 'L'][j];
                     nodes.push({ 
@@ -270,7 +261,7 @@
                 addSeg(`L${i}_L`, `L${i}_T`, 0, 3, [[CX-h, CY], [CX-h, CY-h], [CX, CY-h]], `L${i}_TL`);
             });
 
-            // 先拆解目標角落，產生 _A 與 _B 短線後，再去執行刪除指令
+            // 先拆解目標角落，產生 _A 與 _B 短線
             data.targets.forEach(tName => {
                 let tx = 0, ty = 0;
                 if (tName === 'Center') {
@@ -317,7 +308,7 @@
             });
         }
 
-        // --- 4. 真實電力傳導與唯一解判定 ---
+        // --- 4. 真實電力傳導判定 (拔除自動過關邏輯) ---
         function calculatePower() {
             nodes.forEach(n => n.powered = false);
             segments.forEach(s => s.powered = false);
@@ -368,11 +359,11 @@
 
             targets.forEach(t => {
                 if (t.name === 'Center') {
-                    let segA = segments.find(s => s.tag === 'CENTER_V_A');
-                    let segB = segments.find(s => s.tag === 'CENTER_V_B');
-                    if ((segA && segA.powered) || (segB && segB.powered)) {
-                        t.powered = true;
-                    }
+                    let segs = ['CENTER_V_A', 'CENTER_V_B', 'CENTER_H_A', 'CENTER_H_B'];
+                    segs.forEach(tg => {
+                        let s = segments.find(seg => seg.tag === tg);
+                        if (s && s.powered) t.powered = true;
+                    });
                 } else {
                     let segA = segments.find(s => s.tag === t.name + '_A');
                     let segB = segments.find(s => s.tag === t.name + '_B');
@@ -382,13 +373,14 @@
                 }
             });
 
+            // 若所有節點都正確，將狀態提示更改為「可以驗證」
             let isPerfectMatch = nodes.every(n => n.rot === n.solRot);
-
-            if (isPerfectMatch && hasPlayerMoved) {
-                targetDisp.innerText = `OK`;
-                levelCleared();
-            } else {
+            if (isPerfectMatch && !isLevelComplete) {
+                targetDisp.innerText = `線路似乎通了，請點擊驗證！`;
+                targetDisp.style.color = "#ffff00";
+            } else if (!isLevelComplete) {
                 targetDisp.innerText = `維修中...`;
+                targetDisp.style.color = "#fff";
             }
         }
 
@@ -504,8 +496,6 @@
 
         canvas.addEventListener('click', (e) => {
             if (!isPlaying || isLevelComplete) return;
-
-            hasPlayerMoved = true;
 
             const rect = canvas.getBoundingClientRect();
             const mx = e.clientX - rect.left;
