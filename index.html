@@ -1,9 +1,8 @@
-
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>電路維修專家 - Level 3 拓樸更新版</title>
+    <title>電路維修專家 - Level 3 完美正解版</title>
     <style>
         body { background: #050505; color: #eee; text-align: center; font-family: 'Segoe UI', sans-serif; margin: 0; overflow: hidden; }
         
@@ -51,10 +50,10 @@
         <h1 id="overlay-title">電路維修專家</h1>
         <p id="overlay-desc">
             歡迎來到電力中樞。<br>
-            <strong>Level 3 終極測試啟動。</strong><br>
-            <span style="color:#ffff00">系統提示：已載入最新的實體切斷路徑與目標配置。</span>
+            <strong>Level 3 魔王關卡啟動。</strong><br>
+            <span style="color:#ffff00">系統提示：此為 Level 3 終極正解確認模式。</span>
         </p>
-        <button id="overlay-btn" onclick="startGame()">確認建構</button>
+        <button id="overlay-btn" onclick="startGame()">確認完美連線</button>
     </div>
 
     <script>
@@ -100,34 +99,34 @@
                     { types: ['T','L','T','T'], sol: [1, 0, 0, 2], offset: 0 }, 
                     { types: ['L','T','Y','L'], sol: [0, 3, 1, 1], offset: 0 }, 
                     { types: ['L','Y','T','T'], sol: [2, 1, 2, 3], offset: 0 }, 
-                    { types: ['T','L','T','T'], sol: [1, 0, 3, 0], offset: 0 }  
+                    { types: ['T','L','L','T'], sol: [1, 0, 0, 0], offset: 0 }  
                 ],
                 targets: ['Center', 'L0_TR', 'L2_TR', 'L0_BL', 'L2_BL'],
                 removeSegs: [
-                    'AXIS_1_2_T', 'AXIS_0_1_R', 'L2_BL_A', 'L0_TR_B', 'CENTER_H_A', 'CENTER_H_B'  
+                    'AXIS_1_2_T', 'AXIS_1_2_L', 'AXIS_0_1_R', 
+                    'L2_BL_A', 'L0_TR_B', 'CENTER_H_A', 'CENTER_H_B'  
                 ]
             },
             3: {
                 layers: 4, time: 120,
                 data: [
-                    // L0 (最外圈)：視覺預設角度
-                    { types: ['T','T','T','T'], sol: [0, 3, 0, 1], offset: 0 }, 
-                    // L1 (第三圈)：視覺預設角度
-                    { types: ['T','T','L','Y'], sol: [0, 3, 0, 3], offset: 0 }, 
-                    // L2 (第二圈)：視覺預設角度
-                    { types: ['T','Y','T','T'], sol: [0, 0, 0, 1], offset: 0 }, 
-                    // L3 (第一圈，最裡圈)：視覺預設角度
-                    { types: ['T','L','Y','T'], sol: [0, 2, 0, 3], offset: 0 }  
+                    // L0 (最外圈/第四圈)：套用你的精準旋轉指令
+                    { types: ['T','T','T','T'], sol: [3, 3, 1, 2], offset: 0 }, 
+                    
+                    // L1 (第三圈)：套用你的精準旋轉指令
+                    { types: ['T','T','L','Y'], sol: [3, 0, 3, 0], offset: 0 }, 
+                    
+                    // L2 (第二圈)：套用你的精準旋轉指令
+                    { types: ['T','Y','T','T'], sol: [0, 0, 3, 0], offset: 0 }, 
+                    
+                    // L3 (第一圈，最裡圈)：套用你的精準旋轉指令
+                    { types: ['T','L','Y','T'], sol: [0, 0, 1, 3], offset: 0 }  
                 ],
-                // 【修正】將第三圈左上目標 (L1_TL) 移至第一圈左上 (L3_TL)
+                // 目標與實體切斷黑名單完全鎖死
                 targets: ['Center', 'L0_TR', 'L0_BL', 'L1_TR', 'L2_BR', 'L3_TL'],
-                
-                // 【修正】根據指示加入所有實體斷開的黑名單
                 removeSegs: [
-                    'CENTER_H_A', // 移除中心左側路徑
-                    'CENTER_H_B', // 移除中心右側路徑
-                    'L0_TL',      // 移除第四圈 9點鐘到12點鐘的路徑
-                    'L2_BR_B'     // 移除第二圈右下角電源通往6點鐘方向的路徑
+                    'CENTER_H_A', 'CENTER_H_B', 
+                    'L0_TL', 'L2_BR_B'
                 ]
             }
         };
@@ -311,7 +310,6 @@
                 }
             });
 
-            // 執行移除死胡同
             data.removeSegs.forEach(tagToRemove => {
                 let idx = segments.findIndex(s => s.tag === tagToRemove);
                 if (idx !== -1) segments.splice(idx, 1);
@@ -417,7 +415,6 @@
                 if (entryPort === p1) exits.push(p2);
                 if (entryPort === p2) exits.push(p1);
             } else if (type === 'Y') {
-                // 嚴格配對：[0,3]上左 / [1,2]右下，絕不漏電，遵守不交叉傳導原則！
                 let pairs = (rot % 2 === 0) ? [[0, 3], [1, 2]] : [[0, 1], [2, 3]];
                 pairs.forEach(pair => {
                     if (pair[0] === entryPort) exits.push(pair[1]);
