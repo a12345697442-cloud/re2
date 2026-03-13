@@ -307,7 +307,7 @@ let initRot = (solRot - currentOffset + 4) % 4;
                 }
             });
 
-            addSeg('SOURCE', 'L0_T', 2, 0, [[CX, 70], [CX, CY - boxSizes[0]/2 - 50]], 'SRC');
+            addSeg('SOURCE', 'L0_T', 2, 0, [[CX, 70], [CX, CY - boxSizes[0]/2 - 25]], 'SRC');
             
             // 【引擎修復1】為跨層連線加上具體座標名稱，讓 AXIS_0_1_R 這類設定能找到目標
             for(let i=0; i<lc-1; i++) {
@@ -592,6 +592,7 @@ let initRot = (solRot - currentOffset + 4) % 4;
     </script>
 </body>
 </html>
+
 
 
 
