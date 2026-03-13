@@ -94,14 +94,30 @@
                 removeSegs: ['L2_BL'] 
             },
             2: {
-                layers: 3, time: 90,
+                layers: 4, time: 90,
                 data: [
-                    { types: ['T','L','L','T'], sol: [0, 3, 0, 1], offset: 2 }, 
-                    { types: ['L','T','T','L'], sol: [1, 0, 1, 2], offset: 1 }, 
-                    { types: ['T','T','L','L'], sol: [1, 1, 0, 2], offset: 2 }  
+                    // 第四圈 (L0)
+                    { types: ['T','L','T','T'], sol: [1, 0, 0, 2], offset: 0 }, 
+                    
+                    // 第三圈 (L1)
+                    { types: ['L','T','Y','L'], sol: [0, 3, 1, 1], offset: 0 }, 
+                    
+                    // 第二圈 (L2)
+                    { types: ['L','Y','T','T'], sol: [2, 1, 2, 3], offset: 0 }, 
+                    
+                    // 第一圈 (L3)
+                    { types: ['T','L','L','T'], sol: [1, 0, 0, 0], offset: 0 }  
                 ],
-                targets: ['Center', 'L0_TR', 'L0_BL', 'L1_TR'],
-                removeSegs: []
+                // 目標精確定位
+                targets: ['Center', 'L0_TR', 'L2_TR', 'L0_BL', 'L2_BL'],
+                // 完美還原：已將 12 點鐘與 9 點鐘方向第三圈(L1)與第二圈(L2)的路徑補回！
+                removeSegs: [
+                    'AXIS_0_1_R', // 3點鐘 L0與L1斷開
+                    'L2_BL_A',    // 第二圈左下角，右邊無路徑
+                    'L0_TR_B',    // 最外圈右上角，下方無路徑
+                    'CENTER_H_A', // 中心左側無路徑
+                    'CENTER_H_B'  // 中心右側無路徑
+                ]
             },
             3: {
                 layers: 4, time: 120,
@@ -515,4 +531,5 @@
     </script>
 </body>
 </html>
+
 
