@@ -110,16 +110,16 @@
             3: {
                 layers: 4, time: 120,
                 data: [
-                    // L0 (最外圈/第四圈)：套用你的精準旋轉指令
+                    // L0 (最外圈/第四圈)
                     { types: ['T','T','T','T'], sol: [3, 3, 1, 2], offset: 0 }, 
                     
-                    // L1 (第三圈)：套用你的精準旋轉指令
-                    { types: ['T','T','L','Y'], sol: [3, 0, 3, 0], offset: 0 }, 
+                    // L1 (第三圈)：【精準修正】6點鐘(第三個數值)向左轉1次，從 3 變成 2
+                    { types: ['T','T','L','Y'], sol: [3, 0, 2, 0], offset: 0 }, 
                     
-                    // L2 (第二圈)：套用你的精準旋轉指令
+                    // L2 (第二圈)
                     { types: ['T','Y','T','T'], sol: [0, 0, 3, 0], offset: 0 }, 
                     
-                    // L3 (第一圈，最裡圈)：套用你的精準旋轉指令
+                    // L3 (第一圈，最裡圈)
                     { types: ['T','L','Y','T'], sol: [0, 0, 1, 3], offset: 0 }  
                 ],
                 // 目標與實體切斷黑名單完全鎖死
@@ -310,6 +310,7 @@
                 }
             });
 
+            // 確保在這個階段執行移除死胡同
             data.removeSegs.forEach(tagToRemove => {
                 let idx = segments.findIndex(s => s.tag === tagToRemove);
                 if (idx !== -1) segments.splice(idx, 1);
