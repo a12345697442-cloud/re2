@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>電路維修專家 - Level 3 初步建構版</title>
+    <title>電路維修專家 - Level 3 視覺建構版</title>
     <style>
         body { background: #050505; color: #eee; text-align: center; font-family: 'Segoe UI', sans-serif; margin: 0; overflow: hidden; }
         
@@ -103,25 +103,27 @@
                 ],
                 targets: ['Center', 'L0_TR', 'L2_TR', 'L0_BL', 'L2_BL'],
                 removeSegs: [
-                    'AXIS_1_2_T', 'AXIS_1_2_L', 'AXIS_0_1_R', 
-                    'L2_BL_A', 'L0_TR_B', 'CENTER_H_A', 'CENTER_H_B'  
+                    'AXIS_0_1_R', 'L2_BL_A', 'L0_TR_B', 'CENTER_H_A', 'CENTER_H_B'
                 ]
             },
             3: {
                 layers: 4, time: 120,
                 data: [
-                    // L0 (最外圈)：視覺預設角度
+                    // 第四圈 (最外圈, L0)：視覺預設角度
                     { types: ['T','T','T','T'], sol: [0, 3, 0, 1], offset: 0 }, 
-                    // L1 (第二圈)：視覺預設角度
-                    { types: ['T','T','L','T'], sol: [0, 3, 0, 3], offset: 0 }, 
-                    // L2 (第三圈)：視覺預設角度
-                    { types: ['T','Y','Y','T'], sol: [0, 0, 0, 1], offset: 0 }, 
-                    // L3 (最裡圈)：視覺預設角度
-                    { types: ['T','L','T','T'], sol: [0, 2, 0, 3], offset: 0 }  
+                    
+                    // 第三圈 (L1)：【修正】9點鐘方向改為 Y
+                    { types: ['T','T','L','Y'], sol: [0, 3, 0, 3], offset: 0 }, 
+                    
+                    // 第二圈 (L2)：【修正】6點鐘方向改為 T
+                    { types: ['T','Y','T','T'], sol: [0, 0, 0, 1], offset: 0 }, 
+                    
+                    // 第一圈 (最裡圈, L3)：【修正】6點鐘方向改為 Y
+                    { types: ['T','L','Y','T'], sol: [0, 2, 0, 3], offset: 0 }  
                 ],
                 // 6 個目標精確定位
                 targets: ['Center', 'L0_TR', 'L0_BL', 'L1_TR', 'L2_BR', 'L1_TL'],
-                // Level 3 預設全網格連通，無隱藏斷橋
+                // Level 3 預設全網格連通，等待指令進行實體切斷
                 removeSegs: []
             }
         };
@@ -200,7 +202,7 @@
             overlay.style.display = 'flex';
         }
 
-        // --- 3. 完美還原地圖拓樸 (包含精確的吸收器切斷邏輯) ---
+        // --- 3. 完美還原地圖拓樸 (包含吸收器切斷邏輯) ---
         function addSeg(id1, id2, d1, d2, pts, tag) {
             segments.push({ from: id1, to: id2, fromDir: d1, toDir: d2, points: pts, powered: false, tag: tag });
         }
