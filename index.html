@@ -74,22 +74,21 @@
         const overlayDesc = document.getElementById('overlay-desc');
         const overlayBtn = document.getElementById('overlay-btn');
 
-        const CX = 400; 
+      const CX = 400; 
         const CY = 480; 
 
         let currentLevel = 1;
         let isPlaying = false;
-       let isLevelComplete = false;
+        let isLevelComplete = false;
         let hasPlayerMoved = false; 
         
-        // --- 請在這裡補上這兩行計時器變數 ---
+        // 確保有加上這兩行！
         let timeLeft = 0;
         let timerInterval = null;
         
         let nodes = [];
         let segments = [];
         let targets = [];
-
         // --- 1. 完全保留您的關卡設計，一字未改 ---
         const LEVELS = {
             1: {
@@ -158,7 +157,7 @@
             startLevel(currentLevel);
         }
 
-       function startLevel(level) {
+      function startLevel(level) {
             const data = LEVELS[level];
 
             overlay.style.display = 'none';
@@ -188,8 +187,18 @@
                 timeLeft--;
                 timeDisp.innerText = timeLeft;
                 if (timeLeft <= 10) timeDisp.className = "stat-value warning"; // 剩餘10秒閃爍紅字警告
-                if (timeLeft <= 0) gameOver();
+                
+                if (timeLeft <= 0) {
+                    gameOver(); // 時間到，呼叫失敗判定
+                }
             }, 1000);
+        }
+
+        // 【確保 gameOver 獨立放在這裡】
+        function gameOver() {
+            isPlaying = false;
+            if (timerInterval) clearInterval(timerInterval); // 徹底停止計時器
+            showOverlay('"IS THAT ALL YOU GOT, STRANGER?"', "", "RESTART", startGame);
         }
 
 // 【商人對話與獎勵機制】
@@ -583,6 +592,7 @@ let initRot = (solRot - currentOffset + 4) % 4;
     </script>
 </body>
 </html>
+
 
 
 
