@@ -105,15 +105,16 @@
                     // 第二圈 (L2)：符號鎖死
                     { types: ['L','Y','T','T'], sol: [2, 1, 2, 3], offset: 0 }, 
                     
-                    // 第一圈 (L3)：符號鎖死
-                    { types: ['T','L','T','T'], sol: [1, 0, 3, 0], offset: 0 }  
+                    // 第一圈 (L3)：【確實修正】6點鐘改為 L，預設角度為 0 (└)
+                    { types: ['T','L','L','T'], sol: [1, 0, 0, 0], offset: 0 }  
                 ],
                 // 目標精確定位
                 targets: ['Center', 'L0_TR', 'L2_TR', 'L0_BL', 'L2_BL'],
-                // 完美還原：已將 9點鐘方向的跨圈連線補回！
+                // 完美還原斷橋與末端吸收點
                 removeSegs: [
-                    'AXIS_1_2_T', // 12點鐘 L1與L2斷開
-                    'AXIS_0_1_R', // 3點鐘 L0與L1斷開
+                    'AXIS_1_2_T', 
+                    'AXIS_1_2_L', 
+                    'AXIS_0_1_R', 
                     'L2_BL_A',    // 第二圈左下角，右邊無路徑
                     'L0_TR_B',    // 最外圈右上角，下方無路徑
                     'CENTER_H_A', // 中心左側無路徑
@@ -418,7 +419,6 @@
                 if (entryPort === p1) exits.push(p2);
                 if (entryPort === p2) exits.push(p1);
             } else if (type === 'Y') {
-                // 嚴格配對：[0,3]上左 / [1,2]右下，絕不漏電，遵守不交叉傳導原則！
                 let pairs = (rot % 2 === 0) ? [[0, 3], [1, 2]] : [[0, 1], [2, 3]];
                 pairs.forEach(pair => {
                     if (pair[0] === entryPort) exits.push(pair[1]);
