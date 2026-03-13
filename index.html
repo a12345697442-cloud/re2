@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>電路維修專家 - Level 2 史詩級正解</title>
+    <title>電路維修專家 - Level 3 初步建構版</title>
     <style>
         body { background: #050505; color: #eee; text-align: center; font-family: 'Segoe UI', sans-serif; margin: 0; overflow: hidden; }
         
@@ -39,8 +39,8 @@
 <body>
 
     <div id="ui-bar">
-        <div class="stat-box">LEVEL <span id="level-disp" class="stat-value">2 / 3</span></div>
-        <div class="stat-box">TIME <span id="time-disp" class="stat-value">90</span></div>
+        <div class="stat-box">LEVEL <span id="level-disp" class="stat-value">3 / 3</span></div>
+        <div class="stat-box">TIME <span id="time-disp" class="stat-value">120</span></div>
         <div class="stat-box">STATUS <span id="target-disp" class="stat-value">維修中</span></div>
     </div>
 
@@ -50,10 +50,10 @@
         <h1 id="overlay-title">電路維修專家</h1>
         <p id="overlay-desc">
             歡迎來到電力中樞。<br>
-            <strong>Level 2 魔王關卡啟動。</strong><br>
-            <span style="color:#ffff00">系統提示：此為 Level 2 完美解答確認模式。</span>
+            <strong>Level 3 終極測試啟動。</strong><br>
+            <span style="color:#ffff00">系統提示：此為 Level 3 視覺建構模式，請確認符號配置。</span>
         </p>
-        <button id="overlay-btn" onclick="startGame()">確認極致連線</button>
+        <button id="overlay-btn" onclick="startGame()">確認建構</button>
     </div>
 
     <script>
@@ -70,8 +70,8 @@
         const CX = 400; 
         const CY = 480; 
 
-        let currentLevel = 2; // 預設測試第二關
-        let timeLeft = 90;
+        let currentLevel = 3; // 預設測試第三關
+        let timeLeft = 120;
         let timerInterval = null;
         let isPlaying = false;
         let isLevelComplete = false;
@@ -96,38 +96,32 @@
             2: {
                 layers: 4, time: 90,
                 data: [
-                    // 第四圈 (L0)
                     { types: ['T','L','T','T'], sol: [1, 0, 0, 2], offset: 0 }, 
-                    
-                    // 第三圈 (L1)
                     { types: ['L','T','Y','L'], sol: [0, 3, 1, 1], offset: 0 }, 
-                    
-                    // 第二圈 (L2)
                     { types: ['L','Y','T','T'], sol: [2, 1, 2, 3], offset: 0 }, 
-                    
-                    // 第一圈 (L3)
                     { types: ['T','L','L','T'], sol: [1, 0, 0, 0], offset: 0 }  
                 ],
-                // 目標精確定位
                 targets: ['Center', 'L0_TR', 'L2_TR', 'L0_BL', 'L2_BL'],
-                // 完美還原：已將 12 點鐘與 9 點鐘方向第三圈(L1)與第二圈(L2)的路徑補回！
                 removeSegs: [
-                    'AXIS_0_1_R', // 3點鐘 L0與L1斷開
-                    'L2_BL_A',    // 第二圈左下角，右邊無路徑
-                    'L0_TR_B',    // 最外圈右上角，下方無路徑
-                    'CENTER_H_A', // 中心左側無路徑
-                    'CENTER_H_B'  // 中心右側無路徑
+                    'AXIS_1_2_T', 'AXIS_1_2_L', 'AXIS_0_1_R', 
+                    'L2_BL_A', 'L0_TR_B', 'CENTER_H_A', 'CENTER_H_B'  
                 ]
             },
             3: {
                 layers: 4, time: 120,
                 data: [
-                    { types: ['T','T','T','T'], sol: [0, 3, 0, 1], offset: 2 }, 
-                    { types: ['T','Y','T','T'], sol: [1, 3, 0, 1], offset: 3 }, 
-                    { types: ['T','T','Y','T'], sol: [1, 0, 0, 1], offset: 2 }, 
-                    { types: ['L','T','T','Y'], sol: [1, 1, 0, 3], offset: 3 }  
+                    // L0 (最外圈)：視覺預設角度
+                    { types: ['T','T','T','T'], sol: [0, 3, 0, 1], offset: 0 }, 
+                    // L1 (第二圈)：視覺預設角度
+                    { types: ['T','T','L','T'], sol: [0, 3, 0, 3], offset: 0 }, 
+                    // L2 (第三圈)：視覺預設角度
+                    { types: ['T','Y','Y','T'], sol: [0, 0, 0, 1], offset: 0 }, 
+                    // L3 (最裡圈)：視覺預設角度
+                    { types: ['T','L','T','T'], sol: [0, 2, 0, 3], offset: 0 }  
                 ],
-                targets: ['Center', 'L0_TR', 'L0_BL', 'L1_TL', 'L2_BR'],
+                // 6 個目標精確定位
+                targets: ['Center', 'L0_TR', 'L0_BL', 'L1_TR', 'L2_BR', 'L1_TL'],
+                // Level 3 預設全網格連通，無隱藏斷橋
                 removeSegs: []
             }
         };
@@ -206,7 +200,7 @@
             overlay.style.display = 'flex';
         }
 
-        // --- 3. 完美還原地圖拓樸 ---
+        // --- 3. 完美還原地圖拓樸 (包含精確的吸收器切斷邏輯) ---
         function addSeg(id1, id2, d1, d2, pts, tag) {
             segments.push({ from: id1, to: id2, fromDir: d1, toDir: d2, points: pts, powered: false, tag: tag });
         }
@@ -256,7 +250,7 @@
                 addSeg(`L${i}_R`, `L${i+1}_R`, 3, 1, [[CX+boxSizes[i]/2, CY], [CX+boxSizes[i+1]/2, CY]], `AXIS_${i}_${i+1}_R`);
             }
             
-            // 中心拆分為四條獨立端
+            // 中心拆分為四條獨立端 (全方位吸收)
             let cHalf = boxSizes[lc-1] / 2;
             addSeg(`L${lc-1}_T`, 'NONE', 2, 0, [[CX, CY-cHalf], [CX, CY]], 'CENTER_V_A');
             addSeg(`L${lc-1}_B`, 'NONE', 0, 0, [[CX, CY+cHalf], [CX, CY]], 'CENTER_V_B');
@@ -271,7 +265,7 @@
                 addSeg(`L${i}_L`, `L${i}_T`, 0, 3, [[CX-h, CY], [CX-h, CY-h], [CX, CY-h]], `L${i}_TL`);
             });
 
-            // 先拆解目標角落，產生 _A 與 _B 短線後，再去執行刪除指令
+            // 目標角落吸收器邏輯 (實體切斷)
             data.targets.forEach(tName => {
                 let tx = 0, ty = 0;
                 if (tName === 'Center') {
@@ -311,7 +305,6 @@
                 }
             });
 
-            // 確保在這個階段執行移除死胡同
             data.removeSegs.forEach(tagToRemove => {
                 let idx = segments.findIndex(s => s.tag === tagToRemove);
                 if (idx !== -1) segments.splice(idx, 1);
@@ -369,11 +362,11 @@
 
             targets.forEach(t => {
                 if (t.name === 'Center') {
-                    let segA = segments.find(s => s.tag === 'CENTER_V_A');
-                    let segB = segments.find(s => s.tag === 'CENTER_V_B');
-                    if ((segA && segA.powered) || (segB && segB.powered)) {
-                        t.powered = true;
-                    }
+                    let segs = ['CENTER_V_A', 'CENTER_V_B', 'CENTER_H_A', 'CENTER_H_B'];
+                    segs.forEach(tg => {
+                        let s = segments.find(seg => seg.tag === tg);
+                        if (s && s.powered) t.powered = true;
+                    });
                 } else {
                     let segA = segments.find(s => s.tag === t.name + '_A');
                     let segB = segments.find(s => s.tag === t.name + '_B');
@@ -417,7 +410,6 @@
                 if (entryPort === p1) exits.push(p2);
                 if (entryPort === p2) exits.push(p1);
             } else if (type === 'Y') {
-                // 嚴格配對：[0,3]上左 / [1,2]右下，絕不漏電，遵守不交叉傳導原則！
                 let pairs = (rot % 2 === 0) ? [[0, 3], [1, 2]] : [[0, 1], [2, 3]];
                 pairs.forEach(pair => {
                     if (pair[0] === entryPort) exits.push(pair[1]);
@@ -532,4 +524,3 @@
     </script>
 </body>
 </html>
-
