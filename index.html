@@ -2,6 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Circuit Puzzle</title>
     <style>
         @font-face {
@@ -9,12 +10,21 @@
             src: url('resident_evil_4_remake_font_by_snakeyboy_df7kacs.ttf'); 
         }
 
-
-         {
+        /* 修正原本漏掉的星號選擇器 */
+        * {
             font-family: 'RE4Font', 'Segoe UI', sans-serif !important;
+            box-sizing: border-box; /* 確保 padding 不會撐破螢幕 */
         }
 
-        body { background: #050505; color: #eee; text-align: center; margin: 0; overflow: hidden; text-transform: uppercase; }
+        body { 
+            background: #050505; 
+            color: #eee; 
+            text-align: center; 
+            margin: 0; 
+            overflow: hidden; /* 防止手機滑動 */
+            text-transform: uppercase; 
+            touch-action: none; /* 禁用瀏覽器預設的觸控手勢（如下拉刷新） */
+        }
 
         #ui-bar { 
             position: absolute; top: 0; left: 0; width: 100%; height: 60px; 
@@ -22,6 +32,7 @@
             display: flex; justify-content: center; align-items: center; gap: 30px;
             pointer-events: none; z-index: 10;
         }
+        
         .stat-box { font-size: 20px; color: #00ffcc; text-shadow: 0 0 5px #00ffcc; font-weight: bold; }
         .stat-value { color: #fff; margin-left: 10px; }
         .warning { color: #ff3333; animation: pulse 1s infinite; }
@@ -31,8 +42,9 @@
             background: rgba(0,0,0,0.85); display: flex; flex-direction: column;
             justify-content: center; align-items: center; z-index: 20;
             backdrop-filter: blur(5px);
+            padding: 20px;
         }
-        /* 稍微縮小字體並增加行高，讓商人的長句子不會超出螢幕 */
+        
         h1 { color: #00ffcc; font-size: 38px; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 3px; text-shadow: 0 0 20px #00ffcc; line-height: 1.4; max-width: 90%; }
         p { font-size: 18px; color: #aaa; margin-bottom: 30px; max-width: 600px; line-height: 1.6; }
         button {
@@ -44,20 +56,40 @@
 
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
 
-        canvas { background: #000; border: 2px solid #333; cursor: pointer; display: block; margin: 60px auto 0; box-shadow: 0 0 30px #001100; }
+        /* 2. 讓 Canvas 在手機上自動等比縮放，不超出螢幕邊界 */
+        canvas { 
+            background: #000; 
+            border: 2px solid #333; 
+            cursor: pointer; 
+            display: block; 
+            margin: 60px auto 0; 
+            box-shadow: 0 0 30px #001100;
+            max-width: 95vw; /* 最大寬度為螢幕 95% */
+            max-height: calc(100vh - 70px); /* 扣除頂部 UI bar 的高度 */
+            object-fit: contain; /* 保持完美比例 */
+        }
+
+        /* 3. 手機版專屬 UI 微調 (螢幕寬度小於 600px 時觸發) */
+        @media (max-width: 600px) {
+            #ui-bar { gap: 10px; height: 50px; }
+            .stat-box { font-size: 12px; }
+            h1 { font-size: 24px; letter-spacing: 1px; }
+            button { font-size: 20px; padding: 10px 30px; }
+            canvas { margin-top: 50px; }
+        }
     </style>
 </head>
 <body>
 
     <div id="ui-bar">
-        <div class="stat-box">LEVEL <span id="level-disp" class="stat-value">1 / 3</span></div>
+        <div class="stat-box">LVL <span id="level-disp" class="stat-value">1 / 3</span></div>
         <div class="stat-box">TIME <span id="time-disp" class="stat-value">∞</span></div>
-        <div class="stat-box">STATUS <span id="target-disp" class="stat-value">WORKING...</span></div>
+        <div class="stat-box">STAT <span id="target-disp" class="stat-value">WORK...</span></div>
     </div>
 
     <canvas id="gameCanvas" width="800" height="850"></canvas>
 
-<div id="overlay">
+    <div id="overlay">
         <h1 id="overlay-title">"COME, STRANGER... LET'S START THIS GAME."</h1>
         <p id="overlay-desc" style="font-style: italic; color: #ccc;"></p>
         <button id="overlay-btn" onclick="startGame()">START</button>
@@ -74,7 +106,7 @@
         const overlayDesc = document.getElementById('overlay-desc');
         const overlayBtn = document.getElementById('overlay-btn');
 
-      const CX = 400; 
+        const CX = 400; 
         const CY = 480; 
 
         let currentLevel = 1;
@@ -82,14 +114,13 @@
         let isLevelComplete = false;
         let hasPlayerMoved = false; 
 
-        // 確保有加上這兩行！
         let timeLeft = 0;
         let timerInterval = null;
 
         let nodes = [];
         let segments = [];
         let targets = [];
-        // --- 1. 完全保留您的關卡設計，一字未改 ---
+        
         const LEVELS = {
             1: {
                 layers: 3, time: 30,
@@ -104,66 +135,41 @@
             2: {
                 layers: 4, time: 45,
                 data: [
-                    // 第四圈 (L0)
                     { types: ['T','L','T','T'], sol: [1, 0, 0, 2], offset: 0 }, 
-
-                    // 第三圈 (L1)
                     { types: ['L','T','Y','L'], sol: [0, 3, 1, 1], offset: 0 }, 
-
-                    // 第二圈 (L2)
                     { types: ['L','Y','T','T'], sol: [2, 1, 2, 3], offset: 0 }, 
-
-                    // 第一圈 (L3)
                     { types: ['T','L','L','T'], sol: [1, 0, 0, 0], offset: 0 }  
                 ],
-                // 目標精確定位
                 targets: ['Center', 'L0_TR', 'L2_TR', 'L0_BL', 'L2_BL'],
-                // 完美還原：已將 12 點鐘與 9 點鐘方向第三圈(L1)與第二圈(L2)的路徑補回！
                 removeSegs: [
-                    'AXIS_0_1_R', // 3點鐘 L0與L1斷開
-                    'L2_BL_A',    // 第二圈左下角，右邊無路徑
-                    'L0_TR_B',    // 最外圈右上角，下方無路徑
-                    'CENTER_H_A', // 中心左側無路徑
-                    'CENTER_H_B'  // 中心右側無路徑
+                    'AXIS_0_1_R', 'L2_BL_A', 'L0_TR_B', 'CENTER_H_A', 'CENTER_H_B' 
                 ]
             },
             3: {
                 layers: 4, time: 60,
                 data: [
-                    // L0 (最外圈/第四圈)
                     { types: ['T','T','T','T'], sol: [3, 3, 1, 2], offset: 0 }, 
-
-                    // L1 (第三圈)
                     { types: ['T','T','L','Y'], sol: [3, 0, 2, 0], offset: 0 }, 
-
-                    // L2 (第二圈)
                     { types: ['T','Y','T','T'], sol: [0, 0, 3, 0], offset: 0 }, 
-
-                    // L3 (第一圈，最裡圈)：【精準修正】3點鐘(第二個數值)向右轉1次，從 0 變成 1
                     { types: ['T','L','Y','T'], sol: [0, 1, 1, 3], offset: 0 }  
                 ],
-                // 目標與實體切斷黑名單完全鎖死
                 targets: ['Center', 'L0_TR', 'L0_BL', 'L1_TR', 'L2_BR', 'L3_TL'],
                 removeSegs: [
-                    'CENTER_H_A', 'CENTER_H_B', 
-                    'L0_TL', 'L2_BR_B'
+                    'CENTER_H_A', 'CENTER_H_B', 'L0_TL', 'L2_BR_B'
                 ]
             }
         };
 
-        // --- 2. 遊戲控制 ---
         function startGame() {
             currentLevel = 1;
             startLevel(currentLevel);
         }
 
-      function startLevel(level) {
+        function startLevel(level) {
             const data = LEVELS[level];
-
             overlay.style.display = 'none';
             levelDisp.innerText = `${level} / 3`;
 
-            // 恢復計時器設定
             timeLeft = data.time;
             timeDisp.innerText = timeLeft;
             timeDisp.className = "stat-value";
@@ -176,44 +182,33 @@
             hasPlayerMoved = false;
 
             initExactMap(level);
-
             calculatePower();
             draw();
 
-            // 啟動倒數計時器
             if (timerInterval) clearInterval(timerInterval);
             timerInterval = setInterval(() => {
                 if (!isPlaying || isLevelComplete) return;
                 timeLeft--;
                 timeDisp.innerText = timeLeft;
-                if (timeLeft <= 10) timeDisp.className = "stat-value warning"; // 剩餘10秒閃爍紅字警告
+                if (timeLeft <= 10) timeDisp.className = "stat-value warning"; 
 
                 if (timeLeft <= 0) {
-                    gameOver(); // 時間到，呼叫失敗判定
+                    gameOver(); 
                 }
             }, 1000);
         }
 
-        // 【確保 gameOver 獨立放在這裡】
+        // 修正原本嵌套在 levelCleared 內的錯誤
         function gameOver() {
             isPlaying = false;
-            if (timerInterval) clearInterval(timerInterval); // 徹底停止計時器
+            if (timerInterval) clearInterval(timerInterval); 
             showOverlay('"IS THAT ALL YOU GOT, STRANGER?"', "", "RESTART", startGame);
         }
 
-// 【商人對話與獎勵機制】
         function levelCleared() {
             isLevelComplete = true;
             targetDisp.style.color = "#00ff00";
             targetDisp.innerText = "CONNECTED!";
-
-            // 【新增失敗判定與商人嘲諷】
-        function gameOver() {
-            isPlaying = false;
-            clearInterval(timerInterval);
-            // 顯示大標題嘲諷，按鍵綁定 startGame 重新從第一關開始
-            showOverlay('"IS THAT ALL YOU GOT, STRANGER?"', "", "RESTART", startGame);
-        }
 
             let titleMsg = "";
             let btn = "NEXT LEVEL";
@@ -226,18 +221,15 @@
             } else if (currentLevel >= 3) {
                 titleMsg = '"INCREDIBLE! CLAIM YOUR REWARD, STRANGER..."';
                 btn = "CONFIRM";
-                action = claimReward; // 導向獎勵
+                action = claimReward; 
             }
 
             setTimeout(() => {
-                // 將對話放在第一個參數 (h1)，第二個參數 (p) 留空
                 showOverlay(titleMsg, "", btn, action);
             }, 500);
         }
 
-        // 【新增領取獎勵結語】
         function claimReward() {
-            // 同樣將對話放在第一個參數
             showOverlay('"COME BACK ANYTIME..."', "", "RESTART", startGame);
         }
 
@@ -254,7 +246,6 @@
             overlay.style.display = 'flex';
         }
 
-        // --- 3. 完美還原地圖拓樸 (引擎修復區) ---
         function addSeg(id1, id2, d1, d2, pts, tag) {
             segments.push({ from: id1, to: id2, fromDir: d1, toDir: d2, points: pts, powered: false, tag: tag });
         }
@@ -268,16 +259,16 @@
             let boxSizes = (data.layers === 3) ? [500, 340, 180] : [600, 460, 320, 180];
             const lc = data.layers;
             let randomOffsets = [];
-let isAllSolved = true;
-// 確保隨機打亂的結果不會剛好全都是 0 (直接通關)
-while (isAllSolved) {
-    randomOffsets = [];
-    for (let k = 0; k < lc; k++) {
-        let r = Math.floor(Math.random() * 4); // 產生 0~3 的隨機數
-        randomOffsets.push(r);
-        if (r !== 0) isAllSolved = false;
-    }
-}
+            let isAllSolved = true;
+            
+            while (isAllSolved) {
+                randomOffsets = [];
+                for (let k = 0; k < lc; k++) {
+                    let r = Math.floor(Math.random() * 4); 
+                    randomOffsets.push(r);
+                    if (r !== 0) isAllSolved = false;
+                }
+            }
 
             boxSizes.forEach((size, i) => {
                 const half = size / 2;
@@ -285,17 +276,17 @@ while (isAllSolved) {
                 const layerData = data.data[i];
 
                 const positions = [
-                    { x: CX, y: CY - half },      // Top
-                    { x: CX + half, y: CY },      // Right
-                    { x: CX, y: CY + half },      // Bottom
-                    { x: CX - half, y: CY }       // Left
+                    { x: CX, y: CY - half },      
+                    { x: CX + half, y: CY },      
+                    { x: CX, y: CY + half },      
+                    { x: CX - half, y: CY }       
                 ];
 
                 for (let j = 0; j < 4; j++) {
                     let type = layerData.types[j];
                     let solRot = layerData.sol[j];
-                    let currentOffset = randomOffsets[i]; // 抓取剛剛生成的隨機打亂數
-let initRot = (solRot - currentOffset + 4) % 4;
+                    let currentOffset = randomOffsets[i]; 
+                    let initRot = (solRot - currentOffset + 4) % 4;
 
                     let idSuffix = ['T', 'R', 'B', 'L'][j];
                     nodes.push({ 
@@ -310,7 +301,6 @@ let initRot = (solRot - currentOffset + 4) % 4;
             addSeg('SOURCE', 'L0_T', 2, 0, [[CX, 70], [CX, CY - boxSizes[0]/2 - 50]], 'SRC');
             addSeg('SOURCE', 'L0_T', 2, 0, [[CX, 70], [CX, CY - boxSizes[0]/2 - 25]], 'SRC');
 
-            // 【引擎修復1】為跨層連線加上具體座標名稱，讓 AXIS_0_1_R 這類設定能找到目標
             for(let i=0; i<lc-1; i++) {
                 addSeg(`L${i}_T`, `L${i+1}_T`, 2, 0, [[CX, CY-boxSizes[i]/2], [CX, CY-boxSizes[i+1]/2]], `AXIS_${i}_${i+1}_T`);
                 addSeg(`L${i}_B`, `L${i+1}_B`, 0, 2, [[CX, CY+boxSizes[i]/2], [CX, CY+boxSizes[i+1]/2]], `AXIS_${i}_${i+1}_B`);
@@ -318,7 +308,6 @@ let initRot = (solRot - currentOffset + 4) % 4;
                 addSeg(`L${i}_R`, `L${i+1}_R`, 3, 1, [[CX+boxSizes[i]/2, CY], [CX+boxSizes[i+1]/2, CY]], `AXIS_${i}_${i+1}_R`);
             }
 
-            // 【引擎修復2】嚴格遵守您的指示：中心只有上下路徑，絕不添加左右路徑。
             let cHalf = boxSizes[lc-1] / 2;
             addSeg(`L${lc-1}_T`, 'NONE', 2, 0, [[CX, CY-cHalf], [CX, CY]], 'CENTER_V_A');
             addSeg(`L${lc-1}_B`, 'NONE', 0, 0, [[CX, CY+cHalf], [CX, CY]], 'CENTER_V_B');
@@ -331,7 +320,6 @@ let initRot = (solRot - currentOffset + 4) % 4;
                 addSeg(`L${i}_L`, `L${i}_T`, 0, 3, [[CX-h, CY], [CX-h, CY-h], [CX, CY-h]], `L${i}_TL`);
             });
 
-            // 【引擎修復3】關鍵邏輯對調：必須先處理 Target 的角落分割(_A, _B)，才能處理 removeSegs
             data.targets.forEach(tName => {
                 let tx = 0, ty = 0;
                 if (tName === 'Center') {
@@ -371,14 +359,12 @@ let initRot = (solRot - currentOffset + 4) % 4;
                 }
             });
 
-            // 在 Target 都分割為 _A 或 _B 之後，removeSegs 就能精準找到它們並刪除了！
             data.removeSegs.forEach(tagToRemove => {
                 let idx = segments.findIndex(s => s.tag === tagToRemove);
                 if (idx !== -1) segments.splice(idx, 1);
             });
         }
 
-        // --- 4. 真實電力傳導與唯一解判定 ---
         function calculatePower() {
             nodes.forEach(n => n.powered = false);
             segments.forEach(s => s.powered = false);
@@ -427,10 +413,8 @@ let initRot = (solRot - currentOffset + 4) % 4;
                 });
             }
 
-            // 目標接收判斷
             targets.forEach(t => {
                 if (t.name === 'Center') {
-                    // 中心只有上下吸收器
                     let segA = segments.find(s => s.tag === 'CENTER_V_A');
                     let segB = segments.find(s => s.tag === 'CENTER_V_B');
                     if ((segA && segA.powered) || (segB && segB.powered)) {
@@ -451,7 +435,7 @@ let initRot = (solRot - currentOffset + 4) % 4;
                 targetDisp.innerText = `OK`;
                 levelCleared();
             } else {
-                targetDisp.innerText = `WORKING...`;
+                targetDisp.innerText = `WORK...`;
             }
         }
 
@@ -488,7 +472,6 @@ let initRot = (solRot - currentOffset + 4) % 4;
             return exits;
         }
 
-        // --- 5. 繪圖引擎 ---
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -564,18 +547,25 @@ let initRot = (solRot - currentOffset + 4) % 4;
             });
         }
 
-        canvas.addEventListener('click', (e) => {
+        // 4. 改用 pointerdown，同時支援滑鼠與觸控，並動態計算縮放比例後的座標
+        canvas.addEventListener('pointerdown', (e) => {
             if (!isPlaying || isLevelComplete) return;
 
             hasPlayerMoved = true;
 
             const rect = canvas.getBoundingClientRect();
-            const mx = e.clientX - rect.left;
-            const my = e.clientY - rect.top;
+            // 計算 Canvas 實際渲染尺寸與 CSS 縮放後尺寸的比例
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+
+            // 將點擊螢幕的座標，轉換為 Canvas 內部的真實座標
+            const mx = (e.clientX - rect.left) * scaleX;
+            const my = (e.clientY - rect.top) * scaleY;
 
             let clickedLayer = -1;
             for (let n of nodes) {
-                if (mx > n.x - 25 && mx < n.x + 25 && my > n.y - 25 && my < n.y + 25) {
+                // 加大一點點判定範圍 (從 25 變成 35)，方便手指點擊
+                if (mx > n.x - 35 && mx < n.x + 35 && my > n.y - 35 && my < n.y + 35) {
                     clickedLayer = n.layer;
                     break;
                 }
