@@ -580,18 +580,25 @@ let initRot = (solRot - currentOffset + 4) % 4;
             });
         }
 
-        canvas.addEventListener('click', (e) => {
+       // 【終極修復：統一觸控與滑鼠事件，並放大手機版點擊判定區】
+        canvas.addEventListener('pointerdown', (e) => {
             if (!isPlaying || isLevelComplete) return;
 
             hasPlayerMoved = true;
 
             const rect = canvas.getBoundingClientRect();
-            const mx = e.clientX - rect.left;
-            const my = e.clientY - rect.top;
+            // 計算 CSS 縮放後的真實比例
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+
+            // 將點擊位置精準轉換回 800x850 的內部座標
+            const mx = (e.clientX - rect.left) * scaleX;
+            const my = (e.clientY - rect.top) * scaleY;
 
             let clickedLayer = -1;
+            // 【關鍵修正：放大判定區】原本是 25，現在改成 50，讓手指隨便點都能命中！
             for (let n of nodes) {
-                if (mx > n.x - 25 && mx < n.x + 25 && my > n.y - 25 && my < n.y + 25) {
+                if (mx > n.x - 50 && mx < n.x + 50 && my > n.y - 50 && my < n.y + 50) {
                     clickedLayer = n.layer;
                     break;
                 }
@@ -603,6 +610,8 @@ let initRot = (solRot - currentOffset + 4) % 4;
                 });
                 calculatePower();
                 draw();
+            }
+        });
             }
         });
 
